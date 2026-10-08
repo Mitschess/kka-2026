@@ -1,0 +1,10 @@
+{
+  "name": "surabaya_6sppg",
+  "n_sppg": 6,
+  "n_schools": 42,
+  "vehicles_per_sppg": 3,
+  "radius_km": 3.0,
+  "seed": 7,
+  "matrix_source": "OSRM (router.project-osrm.org, profil driving, data OpenStreetMap)",
+  "built_on": "2026-10-08"
+}

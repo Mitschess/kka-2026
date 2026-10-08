@@ -1,0 +1,40 @@
+{
+  "problem": {
+    "max_schools_per_vehicle": 3,
+    "service_time_min": 15,
+    "max_delivery_time_min": 180,
+    "km_per_liter": 14,
+    "fuel_price_per_liter": 10000,
+    "return_to_depot": true,
+    "traffic_factor": 1.0
+  },
+  "instances": {
+    "surabaya_utara": {
+      "sppg_ids": ["SPPG-KRB", "SPPG-SMK", "SPPG-TDK"],
+      "vehicles_per_sppg": 3,
+      "n_schools": 18,
+      "radius_km": 3.0,
+      "seed": 7
+    },
+    "surabaya_6sppg": {
+      "sppg_ids": ["SPPG-KRB", "SPPG-SMK", "SPPG-TDK", "SPPG-KBR", "SPPG-JWS", "SPPG-MLY"],
+      "vehicles_per_sppg": 3,
+      "n_schools": 42,
+      "radius_km": 3.0,
+      "seed": 7
+    }
+  },
+  "experiment": {
+    "weights": [0.0, 0.25, 0.5, 0.75, 1.0],
+    "main_weight": 0.5,
+    "budget_evals": 20000,
+    "n_seeds": 30,
+    "penalty": 10.0
+  },
+  "algorithms": {
+    "sa": {"accept_prob_init": 0.8, "final_temp_ratio": 0.0001},
+    "ga": {"pop_size": 100, "tournament_k": 3, "p_crossover": 0.9, "p_mutation": 0.3, "n_elite": 2},
+    "aco": {"n_ants": 20, "alpha": 1.0, "beta": 3.0, "rho": 0.1},
+    "nsga2": {"pop_size": 100, "p_crossover": 0.9, "p_mutation": 0.3}
+  }
+}

@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.venv/
+*_log.txt
+results/**/.osrm_cache.json
+results/**/.checkpoint_*.pkl
+results/**/.animasi_data.json

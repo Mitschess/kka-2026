@@ -1,0 +1,22 @@
+index,id,type,name,lat,lon
+0,SPPG-KRB,sppg,SPPG Polrestabes (Krembangan),-7.2386047,112.7361889
+1,SPPG-SMK,sppg,SPPG Simokerto (Jl. Sidotopo Wetan),-7.2396533,112.758143
+2,SPPG-TDK,sppg,SPPG Tembok Dukuh,-7.2541088,112.7217094
+3,way/455433701,school,SD Negeri Bubutan III,-7.2541666,112.7336597
+4,way/448095838,school,"TK, SD, SMP Mandala",-7.2494273,112.7661508
+5,way/458202034,school,SD Negeri Jepara I,-7.237686,112.7225424
+6,way/451495195,school,SMP UNESA 1 Surabaya,-7.2350192,112.7296893
+7,way/449296679,school,SMP Tritunggal,-7.2468807,112.7655434
+8,way/455011232,school,SMP Negeri 38 Surabaya,-7.2342261,112.7348717
+9,way/450692009,school,SD Al Islamiyah,-7.2329377,112.7414722
+10,way/449519088,school,MI Al Azhar,-7.236823,112.7761129
+11,way/463823193,school,SD Negeri Banyu Urip III/ 354,-7.2728702,112.7214565
+12,way/450295222,school,SD Negeri Simokerto I,-7.2390251,112.7508198
+13,way/452621223,school,MI Darusalam,-7.2167342,112.7682349
+14,way/456533081,school,SD Negeri Putat Jaya IV/380,-7.2724739,112.7114724
+15,way/449665874,school,SD Muhammadiyah 17,-7.2360083,112.7521172
+16,way/449784741,school,MI Ma'arif NU Nurul Huda I,-7.2392338,112.7588782
+17,way/451030171,school,KB-TK-SD Kristen Petra 7,-7.2492453,112.7480521
+18,way/453647676,school,"RA, MI, dan SMA Darus Sa'adah",-7.2335341,112.7526105
+19,way/449661163,school,SD Negeri Kapasan V,-7.2433401,112.7548108
+20,way/458006634,school,SMP Kartini,-7.2701213,112.7060404
