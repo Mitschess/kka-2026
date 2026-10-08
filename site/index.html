@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rute MBG Surabaya</title>
+<meta name="description" content="Optimasi rute distribusi Makan Bergizi Gratis dari SPPG ke sekolah di Surabaya: Greedy, SA, GA, ACO, NSGA-II.">
+<style>
+  :root { --bg:#f6f6f4; --surface:#fff; --ink:#1d1d1b; --muted:#6b6b66; --line:#e2e2de; --accent:#2a78d6; --best:#eaf2fc; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#141413; --surface:#1e1e1c; --ink:#ececea; --muted:#a3a39d; --line:#33332f; --accent:#5b9be6; --best:#1d2b3d; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  main { max-width:1080px; margin:0 auto; padding:32px 16px 64px; }
+  h1 { font-size:28px; line-height:1.2; margin:0 0 8px; }
+  h2 { font-size:20px; margin:0 0 12px; }
+  .muted { color:var(--muted); font-weight:400; }
+  .lead { font-size:16px; max-width:760px; }
+  section { background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:20px; margin-top:24px; }
+  .links { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
+  .links a { color:var(--ink); text-decoration:none; border:1px solid var(--line); border-radius:8px; padding:8px 12px; }
+  .links a:hover { border-color:var(--accent); }
+  .links a.primary { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; }
+  .tablewrap { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; min-width:560px; }
+  th, td { text-align:right; padding:8px 10px; border-bottom:1px solid var(--line); }
+  th:first-child, td:first-child { text-align:left; }
+  th { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); font-weight:600; }
+  td.muted { text-align:left; }
+  tr.best td { background:var(--best); font-weight:600; }
+  .gallery { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:14px; margin-top:16px; }
+  figure { margin:0; }
+  figure img { width:100%; height:auto; border:1px solid var(--line); border-radius:8px; background:#fff; display:block; }
+  figcaption { font-size:13px; color:var(--muted); margin-top:4px; }
+  ul { padding-left:20px; }
+  footer { margin-top:32px; font-size:13px; color:var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Optimasi Rute Distribusi MBG di Surabaya</h1>
+  <p class=lead>Pengiriman Makan Bergizi Gratis dari SPPG (dapur) ke sekolah memakai Granmax,
+    dimodelkan sebagai <b>Multi-Depot Vehicle Routing Problem bi-objektif</b>: meminimalkan biaya
+    bensin dan rata-rata waktu tiba makanan, dengan batas 3 sekolah per Granmax dan 3 jam sejak
+    makanan selesai dimasak.</p>
+  <ul>
+    <li>Algoritma: Greedy (baseline), Simulated Annealing, Genetic Algorithm, Ant Colony Optimization (MAX-MIN), NSGA-II.</li>
+    <li>Data: sekolah dari OpenStreetMap, lokasi SPPG dari berita (koordinat perkiraan), jarak &amp; waktu tempuh jalan asli dari OSRM.</li>
+  </ul>
+  
+<section>
+  <h2>surabaya_utara <span class=muted>· 3 SPPG, 18 sekolah</span></h2>
+  <div class=links>
+    <a class=primary href="surabaya_utara/animasi.html">▶ Animasi algoritma &amp; pengiriman</a>
+    <a href="surabaya_utara/peta_rute.html">Peta rute interaktif</a>
+    <a href="surabaya_utara/best_routes.txt">Rute terbaik (teks)</a>
+  </div>
+  <div class=tablewrap><table>
+    <thead><tr><th>Algoritma</th><th>Fitness (mean ± std)</th><th>Biaya bensin</th>
+      <th>Rata-rata tiba</th><th>Waktu/run</th><th>Hypervolume</th></tr></thead>
+    <tbody><tr><td>Greedy</td><td>2.1621</td><td>Rp74,562</td><td>13.6 mnt</td><td>0.0 s</td><td>0.809</td></tr><tr><td>SA</td><td>2.0031 ± 0.0178</td><td>Rp60,893</td><td>13.0 mnt</td><td>1.8 s</td><td>1.099</td></tr><tr class="best"><td>GA</td><td>1.9986 ± 0.0050</td><td>Rp60,548</td><td>13.0 mnt</td><td>6.4 s</td><td>1.085</td></tr><tr><td>ACO</td><td>2.0026 ± 0.0040</td><td>Rp61,521</td><td>13.0 mnt</td><td>40.9 s</td><td>1.197</td></tr><tr><td>NSGA-II</td><td colspan=4 class=muted>multi-objektif (Pareto front), tidak dinilai dengan satu fitness</td><td>1.339</td></tr></tbody>
+  </table></div>
+  <p class=muted>Bobot w = 0.5, 30 seed,
+    20,000 evaluasi per run. Fitness lebih kecil = lebih baik;
+    hypervolume lebih besar = trade-off lebih baik.</p>
+  <div class=gallery><figure><a href="surabaya_utara/fig_pareto.png"><img src="surabaya_utara/fig_pareto.png" alt="Trade-off biaya bensin vs waktu tiba (Pareto front NSGA-II + weighted sum)" loading="lazy"></a><figcaption>Trade-off biaya bensin vs waktu tiba (Pareto front NSGA-II + weighted sum)</figcaption></figure><figure><a href="surabaya_utara/fig_konvergensi.png"><img src="surabaya_utara/fig_konvergensi.png" alt="Konvergensi SA, GA, ACO (median 30 seed)" loading="lazy"></a><figcaption>Konvergensi SA, GA, ACO (median 30 seed)</figcaption></figure><figure><a href="surabaya_utara/fig_boxplot.png"><img src="surabaya_utara/fig_boxplot.png" alt="Sebaran fitness akhir 30 seed" loading="lazy"></a><figcaption>Sebaran fitness akhir 30 seed</figcaption></figure><figure><a href="surabaya_utara/fig_rute_Greedy.png"><img src="surabaya_utara/fig_rute_Greedy.png" alt="Rute terbaik Greedy" loading="lazy"></a><figcaption>Rute terbaik Greedy</figcaption></figure><figure><a href="surabaya_utara/fig_rute_SA.png"><img src="surabaya_utara/fig_rute_SA.png" alt="Rute terbaik SA" loading="lazy"></a><figcaption>Rute terbaik SA</figcaption></figure><figure><a href="surabaya_utara/fig_rute_GA.png"><img src="surabaya_utara/fig_rute_GA.png" alt="Rute terbaik GA" loading="lazy"></a><figcaption>Rute terbaik GA</figcaption></figure><figure><a href="surabaya_utara/fig_rute_ACO.png"><img src="surabaya_utara/fig_rute_ACO.png" alt="Rute terbaik ACO" loading="lazy"></a><figcaption>Rute terbaik ACO</figcaption></figure></div>
+</section>
+<section>
+  <h2>surabaya_6sppg <span class=muted>· 6 SPPG, 42 sekolah</span></h2>
+  <div class=links>
+    <a class=primary href="surabaya_6sppg/animasi.html">▶ Animasi algoritma &amp; pengiriman</a>
+    <a href="surabaya_6sppg/peta_rute.html">Peta rute interaktif</a>
+    <a href="surabaya_6sppg/best_routes.txt">Rute terbaik (teks)</a>
+  </div>
+  <div class=tablewrap><table>
+    <thead><tr><th>Algoritma</th><th>Fitness (mean ± std)</th><th>Biaya bensin</th>
+      <th>Rata-rata tiba</th><th>Waktu/run</th><th>Hypervolume</th></tr></thead>
+    <tbody><tr><td>Greedy</td><td>2.2417</td><td>Rp163,086</td><td>18.4 mnt</td><td>0.0 s</td><td>0.581</td></tr><tr><td>SA</td><td>2.1385 ± 0.0246</td><td>Rp145,778</td><td>17.8 mnt</td><td>1.8 s</td><td>0.712</td></tr><tr><td>GA</td><td>2.0906 ± 0.0160</td><td>Rp134,323</td><td>17.6 mnt</td><td>13.4 s</td><td>0.779</td></tr><tr class="best"><td>ACO</td><td>2.0810 ± 0.0094</td><td>Rp135,240</td><td>17.5 mnt</td><td>127.0 s</td><td>0.793</td></tr><tr><td>NSGA-II</td><td colspan=4 class=muted>multi-objektif (Pareto front), tidak dinilai dengan satu fitness</td><td>0.823</td></tr></tbody>
+  </table></div>
+  <p class=muted>Bobot w = 0.5, 30 seed,
+    20,000 evaluasi per run. Fitness lebih kecil = lebih baik;
+    hypervolume lebih besar = trade-off lebih baik.</p>
+  <div class=gallery><figure><a href="surabaya_6sppg/fig_pareto.png"><img src="surabaya_6sppg/fig_pareto.png" alt="Trade-off biaya bensin vs waktu tiba (Pareto front NSGA-II + weighted sum)" loading="lazy"></a><figcaption>Trade-off biaya bensin vs waktu tiba (Pareto front NSGA-II + weighted sum)</figcaption></figure><figure><a href="surabaya_6sppg/fig_konvergensi.png"><img src="surabaya_6sppg/fig_konvergensi.png" alt="Konvergensi SA, GA, ACO (median 30 seed)" loading="lazy"></a><figcaption>Konvergensi SA, GA, ACO (median 30 seed)</figcaption></figure><figure><a href="surabaya_6sppg/fig_boxplot.png"><img src="surabaya_6sppg/fig_boxplot.png" alt="Sebaran fitness akhir 30 seed" loading="lazy"></a><figcaption>Sebaran fitness akhir 30 seed</figcaption></figure><figure><a href="surabaya_6sppg/fig_rute_Greedy.png"><img src="surabaya_6sppg/fig_rute_Greedy.png" alt="Rute terbaik Greedy" loading="lazy"></a><figcaption>Rute terbaik Greedy</figcaption></figure><figure><a href="surabaya_6sppg/fig_rute_SA.png"><img src="surabaya_6sppg/fig_rute_SA.png" alt="Rute terbaik SA" loading="lazy"></a><figcaption>Rute terbaik SA</figcaption></figure><figure><a href="surabaya_6sppg/fig_rute_GA.png"><img src="surabaya_6sppg/fig_rute_GA.png" alt="Rute terbaik GA" loading="lazy"></a><figcaption>Rute terbaik GA</figcaption></figure><figure><a href="surabaya_6sppg/fig_rute_ACO.png"><img src="surabaya_6sppg/fig_rute_ACO.png" alt="Rute terbaik ACO" loading="lazy"></a><figcaption>Rute terbaik ACO</figcaption></figure><figure><a href="surabaya_6sppg/fig_sens_kapasitas_biaya.png"><img src="surabaya_6sppg/fig_sens_kapasitas_biaya.png" alt="Sensitivitas kapasitas: biaya" loading="lazy"></a><figcaption>Sensitivitas kapasitas: biaya</figcaption></figure><figure><a href="surabaya_6sppg/fig_sens_kapasitas_waktu.png"><img src="surabaya_6sppg/fig_sens_kapasitas_waktu.png" alt="Sensitivitas kapasitas: waktu" loading="lazy"></a><figcaption>Sensitivitas kapasitas: waktu</figcaption></figure><figure><a href="surabaya_6sppg/fig_sens_macet.png"><img src="surabaya_6sppg/fig_sens_macet.png" alt="Sensitivitas kemacetan vs batas 3 jam" loading="lazy"></a><figcaption>Sensitivitas kemacetan vs batas 3 jam</figcaption></figure></div>
+</section>
+  <footer>Proyek ETS Konsep Kecerdasan Artifisial. Data peta © kontributor OpenStreetMap, routing OSRM, tile peta © Esri.</footer>
+</main>
+</body>
+</html>

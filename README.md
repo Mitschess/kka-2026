@@ -93,6 +93,16 @@ panah kiri/kanan = langkah. Tautan langsung juga bisa, misalnya `animasi.html#st
 Run SA/GA/ACO di animasi sama persis dengan run seed 1 di eksperimen (`trace` tidak memakai rng).
 Setelah mengubah template, cukup `python make_animation.py --html-only`.
 
+## Deploy hasil ke web (Vercel)
+
+Semua hasil adalah file statis, jadi cukup dihosting tanpa server:
+
+```bash
+python scripts/build_site.py      # kumpulkan animasi, peta, grafik + halaman depan ke site/
+vercel login                      # sekali saja
+vercel deploy site --prod
+```
+
 ## Sumber data
 - Sekolah dan jaringan jalan: © kontributor OpenStreetMap (ODbL), routing via OSRM.
 - Lokasi SPPG: lihat kolom `reference` di `data/raw/sppg.csv`. Koordinatnya **perkiraan**

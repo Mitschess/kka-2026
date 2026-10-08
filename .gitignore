@@ -5,3 +5,4 @@ __pycache__/
 results/**/.osrm_cache.json
 results/**/.checkpoint_*.pkl
 results/**/.animasi_data.json
+site/.vercel/
