@@ -222,17 +222,22 @@ function setCodeHidden(hidden) {
 $("toggleCode").onclick = () => setCodeHidden(!document.body.classList.contains("nocode"));
 
 // ------------------------------------------------------------------ tahap 1: pencarian
+// geometri jalan asli per ruas a -> b (OSRM); garis lurus hanya kalau datanya tidak ada
+const LEGS = DATA.legs || {};
+const leg = (a, b) => LEGS[a + "-" + b] || [ll(a), ll(b)];
 function routePath(r) {
-  const d = r[0], pts = [ll(d)];
-  for (const s of r.slice(1)) pts.push(ll(M + s));
-  pts.push(ll(d));
+  const nodes = [r[0], ...r.slice(1).map((s) => M + s), r[0]], pts = [];
+  for (let k = 0; k + 1 < nodes.length; k++) {
+    const g = leg(nodes[k], nodes[k + 1]);
+    pts.push(...(k ? g.slice(1) : g));
+  }
   return pts;
 }
 function drawSearch() {
   const A = DATA.algos[S.algo], F = A.frames, f = F[S.frame];
   pherLayer.clearLayers(); routeLayer.clearLayers();
   for (const [a, b, v] of (f.ph || []))
-    L.polyline([ll(a), ll(b)], { color: "#8a5a2b", weight: 1 + 6 * v, opacity: 0.12 + 0.55 * v, interactive: false }).addTo(pherLayer);
+    L.polyline(leg(a, b), { color: "#8a5a2b", weight: 2 + 9 * v, opacity: 0.08 + 0.4 * v, interactive: false }).addTo(pherLayer);
   const owner = new Array(N).fill(-1);
   for (const r of f.r) {
     const over = r.length - 1 > DATA.Q;
@@ -476,7 +481,7 @@ function enter() {
     $("codeTitle").textContent = `Pseudocode · ${S.algo}`;
     setCode(A.code);
     computeScatterBounds();
-    $("note").textContent = "Garis lurus = urutan kunjungan tiap Granmax (bukan jalan asli). Garis putus-putus = rute melebihi kapasitas."
+    $("note").textContent = "Rute digambar mengikuti jalan asli (OSRM). Garis putus-putus = rute melebihi kapasitas."
       + (S.algo === "ACO" ? " Garis cokelat = jalur dengan feromon kuat." : "")
       + ` Run: seed ${DATA.seed}, ${DATA.budget.toLocaleString("id-ID")} evaluasi.`;
   } else {

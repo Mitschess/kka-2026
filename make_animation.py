@@ -16,6 +16,7 @@ import math
 import sys
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import requests
@@ -383,14 +384,15 @@ class LegCache:
         self.inst, self.path = inst, path
         self.data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
 
-    def route(self, idx):
+    def _fetch(self, idx):
+        """Satu request OSRM untuk rangkaian titik idx -> simpan geometri tiap ruas."""
         keys = [f"{a}-{b}" for a, b in zip(idx[:-1], idx[1:])]
-        if not all(k in self.data for k in keys):
-            pts = ";".join(f"{self.inst.nodes[i]['lon']:.6f},{self.inst.nodes[i]['lat']:.6f}" for i in idx)
+        pts = ";".join(f"{self.inst.nodes[i]['lon']:.6f},{self.inst.nodes[i]['lat']:.6f}" for i in idx)
+        for attempt in range(3):
             try:
                 r = requests.get(f"https://router.project-osrm.org/route/v1/driving/{pts}",
                                  params={"overview": "false", "steps": "true", "geometries": "geojson"},
-                                 headers={"User-Agent": "KKA-ETS-MBG-VRP/1.0"}, timeout=30)
+                                 headers={"User-Agent": "KKA-ETS-MBG-VRP/1.0"}, timeout=60)
                 legs = r.json()["routes"][0]["legs"]
                 for k, leg in zip(keys, legs):
                     coords = []
@@ -399,13 +401,51 @@ class LegCache:
                             if not coords or coords[-1] != [round(lat, 6), round(lon, 6)]:
                                 coords.append([round(lat, 6), round(lon, 6)])
                     self.data[k] = coords
-                time.sleep(0.3)  # sopan ke server demo OSRM
+                time.sleep(0.5)  # sopan ke server demo OSRM
+                return True
             except Exception as e:  # noqa: BLE001
-                print(f"    OSRM gagal ({e}); pakai garis lurus")
-                for k, (a, b) in zip(keys, zip(idx[:-1], idx[1:])):
-                    self.data.setdefault(k, [[self.inst.nodes[i]["lat"], self.inst.nodes[i]["lon"]]
-                                             for i in (a, b)])
-        return [self.data[k] for k in keys]
+                print(f"    OSRM gagal ({e}), coba lagi")
+                time.sleep(3 * (attempt + 1))
+        return False
+
+    def _straight(self, a, b):
+        return [[self.inst.nodes[i]["lat"], self.inst.nodes[i]["lon"]] for i in (a, b)]
+
+    def route(self, idx):
+        keys = [f"{a}-{b}" for a, b in zip(idx[:-1], idx[1:])]
+        if not all(k in self.data for k in keys):
+            self._fetch(idx)
+        # kalau OSRM gagal: garis lurus (tidak disimpan ke cache, dicoba lagi lain kali)
+        return [self.data.get(k) or self._straight(a, b) for k, (a, b) in zip(keys, zip(idx[:-1], idx[1:]))]
+
+    def ensure(self, pairs, chunk=60):
+        """Ambil geometri banyak ruas (a, b) sekaligus. Ruas yang belum ada dirangkai jadi
+        jalan-jalan panjang (tiap ruas dilalui tepat sekali), lalu tiap potongan `chunk`
+        titik = satu request OSRM (OSRM mengembalikan geometri per ruas)."""
+        todo = {}
+        for a, b in sorted(set(pairs)):
+            if a != b and f"{a}-{b}" not in self.data:
+                todo.setdefault(a, []).append(b)
+        walks = []
+        while todo:
+            v = next(iter(todo))
+            walk = [v]
+            while todo.get(v):
+                nxt = todo[v].pop()
+                if not todo[v]:
+                    del todo[v]
+                walk.append(nxt)
+                v = nxt
+            walks.append(walk)
+        chunks = [w[i:i + chunk] for w in walks for i in range(0, max(1, len(w) - 1), chunk - 1)]
+        chunks = [c for c in chunks if len(c) > 1]
+        for k, c in enumerate(chunks, start=1):
+            print(f"\r    OSRM ruas jalan: request {k}/{len(chunks)}", end="", flush=True)
+            self._fetch(c)
+            if k % 10 == 0:
+                self.save()
+        if chunks:
+            print()
 
     def save(self):
         self.path.write_text(json.dumps(self.data), encoding="utf-8")
@@ -467,8 +507,54 @@ def build(name, cfg, budget, seed):
         "nodes": [{"id": n["id"], "name": n["name"], "lat": n["lat"], "lon": n["lon"]} for n in inst.nodes],
         "algos": algos,
     }
+    attach_legs(data, out)
     (out / ".animasi_data.json").write_text(json.dumps(data), encoding="utf-8")
     render_html(data, out / "animasi.html")
+
+
+def simplify(coords, tol=5e-5):
+    """Douglas-Peucker (tol dalam derajat, 5e-5 ~ 5 m) agar file HTML tidak terlalu besar."""
+    if len(coords) <= 2:
+        return coords
+    keep = [False] * len(coords)
+    keep[0] = keep[-1] = True
+    stack = [(0, len(coords) - 1)]
+    while stack:
+        i, j = stack.pop()
+        (y1, x1), (y2, x2) = coords[i], coords[j]
+        dx, dy = x2 - x1, y2 - y1
+        norm = math.hypot(dx, dy) or 1e-12
+        best, idx = 0.0, None
+        for k in range(i + 1, j):
+            y, x = coords[k]
+            dist = abs(dy * (x - x1) - dx * (y - y1)) / norm
+            if dist > best:
+                best, idx = dist, k
+        if idx is not None and best > tol:
+            keep[idx] = True
+            stack += [(i, idx), (idx, j)]
+    return [[round(c[0], 5), round(c[1], 5)] for c, k in zip(coords, keep) if k]
+
+
+def attach_legs(data, out):
+    """Geometri jalan asli untuk setiap ruas yang muncul di animasi tahap 1, sehingga
+    rute di setiap frame digambar mengikuti jalan (bukan garis lurus)."""
+    pairs = set()
+    for a in data["algos"].values():
+        for fr in a["frames"]:
+            for r in fr["r"]:
+                nodes = [r[0]] + [data["m"] + s for s in r[1:]] + [r[0]]
+                pairs.update(zip(nodes[:-1], nodes[1:]))
+            pairs.update((a_, b_) for a_, b_, _ in fr.get("ph", []))
+    legs = LegCache(SimpleNamespace(nodes=data["nodes"]), out / ".osrm_legs_cache.json")
+    print(f"  {len(pairs)} ruas jalan dipakai di animasi")
+    legs.ensure(pairs)
+    legs.save()
+    data["legs"] = {f"{a}-{b}": simplify(legs.data[f"{a}-{b}"]) for a, b in pairs
+                    if a != b and f"{a}-{b}" in legs.data}
+    missing = len(pairs) - len(data["legs"])
+    if missing:
+        print(f"  {missing} ruas tanpa geometri (OSRM gagal) -> digambar garis lurus")
 
 
 def render_html(data, path):
@@ -491,6 +577,9 @@ def main():
         out = ROOT / "results" / name
         if args.html_only:
             data = json.loads((out / ".animasi_data.json").read_text(encoding="utf-8"))
+            if "legs" not in data:
+                attach_legs(data, out)
+                (out / ".animasi_data.json").write_text(json.dumps(data), encoding="utf-8")
             render_html(data, out / "animasi.html")
         else:
             build(name, cfg, args.budget, args.seed)
