@@ -25,15 +25,14 @@ set `vehicles_per_sppg` = 1 di `config.json`.
 | Model | Representasi | Keterangan |
 |---|---|---|
 | Greedy (baseline) | konstruktif | pilih penambahan dengan biaya inkremental terkecil |
+| Random-Restart Hill Climbing | permutasi + pemisah kendaraan | 50 tetangga acak (swap / insert / inversion) per langkah, restart saat local optimum |
 | Simulated Annealing | permutasi + pemisah kendaraan | swap / insert / inversion, pendinginan geometrik, T0 adaptif |
 | Genetic Algorithm | urutan sekolah + **decoder greedy** | OX crossover, tournament, elitisme |
-| Ant Colony Optimization | konstruktif probabilistik | **MAX-MIN Ant System**, heuristik = biaya inkremental |
-| **NSGA-II** | urutan sekolah + **gen bobot decoder** | multi-objective langsung, constrained domination (Deb) |
 
-SA, GA, dan ACO meminimalkan *weighted sum* ternormalisasi
+Semua algoritma berasal dari materi kuliah (Greedy, Hill Climbing, Simulated Annealing, Genetic Algorithm).
+HC, SA, dan GA meminimalkan *weighted sum* ternormalisasi
 `F = w·f1/ref1 + (1−w)·f2/ref2 + penalti·pelanggaran`, dengan w ∈ {0, 0.25, 0.5, 0.75, 1}.
-NSGA-II langsung menghasilkan Pareto front, dengan anggaran evaluasi yang sama dengan total 5 run weighted sum.
-Semua metaheuristik diberi **anggaran evaluasi yang sama** (20.000 evaluasi per run).
+Trade-off biaya vs waktu didapat dari menyapu nilai w. Semua metaheuristik diberi **anggaran evaluasi yang sama** (20.000 evaluasi per run).
 
 ## Struktur
 
@@ -47,9 +46,8 @@ scripts/build_instance.py pilih sekolah + hitung matriks OSRM
 src/mbgvrp/
   problem.py             model masalah & fungsi evaluasi
   encoding.py            representasi permutasi + operator
-  construct.py           konstruksi Greedy/ACO + decoder GA
-  algorithms.py          SA, GA, ACO, NSGA-II
-  metrics.py             hypervolume
+  construct.py           konstruksi Greedy + decoder GA
+  algorithms.py          HC, SA, GA
   viz.py                 grafik & peta rute
   animation_template.html tampilan animasi (Leaflet)
 run_experiments.py       eksperimen utama (paralel)
@@ -83,14 +81,13 @@ Di peta, rute tiap algoritma bisa dinyalakan/dimatikan lewat panel layer.
 ### Animasi (`results/<instance>/animasi.html`)
 
 Dua tahap, pilih algoritma di kanan atas:
-1. **Pencarian rute**: langkah demi langkah Greedy / SA / GA / ACO / NSGA-II. Baris pseudocode
-   yang sedang dijalankan di-highlight, rute di peta berubah mengikuti solusi saat itu
-   (ACO: garis cokelat = feromon; NSGA-II: grafik sebaran populasi biaya vs waktu).
+1. **Pencarian rute**: langkah demi langkah Greedy / HC / SA / GA. Baris pseudocode
+   yang sedang dijalankan di-highlight, rute di peta berubah mengikuti solusi saat itu.
 2. **Pengiriman**: Granmax bergerak di jalan asli dari SPPG ke sekolah dengan jam berjalan.
 
 Tombol *Sembunyikan kode* menyembunyikan panel pseudocode. Kontrol: spasi = putar/jeda,
 panah kiri/kanan = langkah. Tautan langsung juga bisa, misalnya `animasi.html#stage=2&algo=GA&t=30`.
-Run SA/GA/ACO di animasi sama persis dengan run seed 1 di eksperimen (`trace` tidak memakai rng).
+Run HC/SA/GA di animasi sama persis dengan run seed 1 di eksperimen (`trace` tidak memakai rng).
 Setelah mengubah template, cukup `python make_animation.py --html-only`.
 
 ## Deploy hasil ke web (Vercel)

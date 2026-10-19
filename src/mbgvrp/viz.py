@@ -10,9 +10,8 @@ import numpy as np  # noqa: E402
 import requests  # noqa: E402
 
 # warna mengikuti entitas (algoritma), urutan tetap & sudah divalidasi CVD
-COLORS = {"Greedy": "#52514e", "SA": "#2a78d6", "GA": "#eb6834", "ACO": "#1baf7a",
-          "NSGA-II": "#4a3aa7"}
-MARKERS = {"Greedy": "s", "SA": "o", "GA": "^", "ACO": "D", "NSGA-II": "."}
+COLORS = {"Greedy": "#52514e", "SA": "#2a78d6", "GA": "#eb6834", "HC": "#1baf7a"}
+MARKERS = {"Greedy": "s", "SA": "o", "GA": "^", "HC": "D"}
 INK, INK2, GRID = "#0b0b0b", "#52514e", "#e4e3df"
 DEPOT_COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#4a3aa7", "#e34948", "#008300"]
 
@@ -75,18 +74,16 @@ def plot_boxplot(values, greedy_f, path, title):
     _save(fig, path)
 
 
-def plot_pareto(nsga_front, ws_points, path, title):
-    """nsga_front: [(biaya, waktu)] gabungan seluruh seed NSGA-II (sudah non-dominated)
-    ws_points: {algo: [(biaya, waktu, w)]} solusi terbaik weighted-sum per bobot."""
+def plot_tradeoff(ws_points, path, title):
+    """ws_points: {algo: [(biaya, waktu, w)]} solusi terbaik weighted-sum per bobot w."""
     fig, ax = plt.subplots(figsize=(7.5, 5))
-    f = sorted(nsga_front)
-    ax.step([p[0] / 1000 for p in f], [p[1] for p in f], where="post", color=COLORS["NSGA-II"],
-            linewidth=2, label="NSGA-II (Pareto front)")
-    ax.scatter([p[0] / 1000 for p in f], [p[1] for p in f], s=14, color=COLORS["NSGA-II"])
     for algo, pts in ws_points.items():
+        pts = sorted(pts)
+        ax.plot([p[0] / 1000 for p in pts], [p[1] for p in pts], color=COLORS[algo], linewidth=1.2,
+                alpha=0.6)
         ax.scatter([p[0] / 1000 for p in pts], [p[1] for p in pts], s=70, marker=MARKERS[algo],
                    facecolor="none" if algo != "Greedy" else COLORS[algo],
-                   edgecolor=COLORS[algo], linewidth=1.8, label=f"{algo} (weighted sum)")
+                   edgecolor=COLORS[algo], linewidth=1.8, label=f"{algo} (w = 0 … 1)")
     _style(ax, title, "Biaya bensin total (ribu Rp)", "Rata-rata waktu tiba di sekolah (menit)")
     ax.legend(frameon=False)
     _save(fig, path)

@@ -1,4 +1,4 @@
-"""Representasi permutasi-dengan-pemisah (dipakai SA, GA, NSGA-II).
+"""Representasi permutasi-dengan-pemisah (dipakai HC, SA, GA).
 
 Kromosom = permutasi token 0..n+R-2:
   token < n   -> sekolah

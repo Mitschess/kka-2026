@@ -1,4 +1,4 @@
-"""Eksperimen utama: Greedy vs SA vs GA vs ACO (weighted sum) dan NSGA-II (Pareto).
+"""Eksperimen utama: Greedy vs Hill Climbing vs SA vs GA (weighted sum, algoritma dari slide).
 
 Contoh:
   python run_experiments.py                          # semua instance, setting config.json
@@ -10,8 +10,6 @@ Hasil per instance di results/<instance>/ :
   summary_main_w.csv     ringkasan mean/std/best pada bobot utama
   summary_all_w.csv      ringkasan untuk setiap bobot
   stat_tests.csv         uji Mann-Whitney U antar algoritma (bobot utama)
-  hypervolume.csv        hypervolume weighted-sum (SA/GA/ACO) vs NSGA-II per seed
-  nsga2_front.csv        Pareto front gabungan NSGA-II
   best_routes.txt        rute terbaik tiap algoritma dalam bahasa manusia
   fig_*.png, peta_rute.html
 """
@@ -32,10 +30,9 @@ ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / "src"))
 
 from mbgvrp import algorithms as A  # noqa: E402
-from mbgvrp.metrics import hypervolume_2d, nondominated  # noqa: E402
 from mbgvrp.problem import load_instance  # noqa: E402
 
-SINGLE = {"SA": A.run_sa, "GA": A.run_ga, "ACO": A.run_aco}
+SINGLE = {"HC": A.run_hc, "SA": A.run_sa, "GA": A.run_ga}
 _CACHE = {}
 
 
@@ -65,14 +62,6 @@ def task_single(name, config, algo, w, seed, budget):
     assert inst.check_complete(res.routes), f"{algo} tidak melayani semua sekolah"
     row = _row(inst, algo, w, seed, res.evaluation, res.fitness, res.runtime_s, res.n_evals)
     return row, res.routes, res.history
-
-
-def task_nsga2(name, config, seed, budget):
-    inst = _instance(name, config)
-    rng = np.random.default_rng(seed * 1000 + 999)
-    res = A.run_nsga2(inst, budget, rng, snapshot_every=10, **config["algorithms"]["nsga2"])
-    front = [(routes, ev) for routes, ev in res.front]
-    return seed, front, res.runtime_s, res.n_evals, res.snapshots
 
 
 # ---------------------------------------------------------------------- pelaporan
@@ -129,7 +118,7 @@ def summarize(rows, keys):
     return out
 
 
-def report(name, config, rows, routes_of, histories, nsga, out):
+def report(name, config, rows, routes_of, histories, out):
     # import berat hanya di proses utama (worker cukup numpy -> hemat RAM)
     from scipy.stats import mannwhitneyu
 
@@ -138,7 +127,7 @@ def report(name, config, rows, routes_of, histories, nsga, out):
     inst = _instance(name, config)
     exp = config["experiment"]
     w0 = exp["main_weight"]
-    algos = ["SA", "GA", "ACO"]
+    algos = ["HC", "SA", "GA"]
     fmt = lambda x: f"{x:.4f}"  # noqa: E731
 
     write_csv(out / "runs.csv", rows)
@@ -159,36 +148,7 @@ def report(name, config, rows, routes_of, histories, nsga, out):
                           "significant_5pct": p < 0.05, "better_median": better})
     write_csv(out / "stat_tests.csv", tests)
 
-    # ---- hypervolume (objektif ternormalisasi terhadap ref_cost & ref_time)
-    norm = lambda c, t: (c / inst.ref_cost, t / inst.ref_time)  # noqa: E731
-    seeds = sorted({r["seed"] for r in rows if r["algorithm"] != "Greedy"})
-    sets = defaultdict(dict)  # sets[algo][seed] = [(f1n, f2n)]
-    for a in algos + ["Greedy"]:
-        for s in (seeds if a != "Greedy" else [0]):
-            sets[a][s] = [norm(r["cost_rp"], r["mean_arrival_min"]) for r in rows
-                          if r["algorithm"] == a and r["seed"] == s and r["feasible"]]
-    for s, front, *_ in nsga:
-        sets["NSGA-II"][s] = [norm(ev.cost, ev.mean_arrival) for _, ev in front]
-    all_pts = [p for a in sets for pts in sets[a].values() for p in pts]
-    ref = (max(p[0] for p in all_pts) * 1.1, max(p[1] for p in all_pts) * 1.1)
-    hv_rows = []
-    for a in algos + ["NSGA-II", "Greedy"]:
-        for s, pts in sorted(sets[a].items()):
-            hv_rows.append({"algorithm": a, "seed": s, "hypervolume": hypervolume_2d(pts, ref),
-                            "n_nondominated": len(nondominated(pts))})
-    write_csv(out / "hypervolume.csv", hv_rows)
-
-    # ---- front gabungan NSGA-II
-    union = [(ev.cost, ev.mean_arrival, routes, ev) for _, front, *_ in nsga for routes, ev in front]
-    nd = set(nondominated([(c, t) for c, t, *_ in union]))
-    front_sol, seen = [], set()
-    for c, t, routes, ev in sorted(union, key=lambda x: (x[0], x[1])):
-        if (c, t) in nd and (c, t) not in seen:
-            seen.add((c, t))
-            front_sol.append((routes, ev))
-    write_csv(out / "nsga2_front.csv", [
-        {"cost_rp": ev.cost, "mean_arrival_min": ev.mean_arrival, "makespan_min": ev.makespan,
-         "km": ev.km, "n_vehicles": ev.n_vehicles} for _, ev in front_sol])
+    n_seeds = len({r["seed"] for r in main_rows if r["algorithm"] != "Greedy"})
 
     # ---- solusi terbaik tiap algoritma (bobot utama)
     best = {}
@@ -197,19 +157,12 @@ def report(name, config, rows, routes_of, histories, nsga, out):
         r = min(cand, key=lambda x: x["fitness"])
         routes = routes_of[(a, w0, r["seed"])]
         best[a] = (routes, inst.evaluate(routes), r["fitness"])
-    # titik-titik khas NSGA-II: termurah, tercepat, dan "knee" (terdekat ke titik ideal)
-    fn = np.array([norm(ev.cost, ev.mean_arrival) for _, ev in front_sol])
-    ideal, nadir = fn.min(axis=0), fn.max(axis=0)
-    scaled = (fn - ideal) / np.where(nadir > ideal, nadir - ideal, 1)
-    knee = int(np.argmin(np.linalg.norm(scaled, axis=1)))
-    picks = {"NSGA-II termurah": front_sol[0], "NSGA-II knee": front_sol[knee],
-             "NSGA-II tercepat": front_sol[-1]}
 
     with open(out / "best_routes.txt", "w", encoding="utf-8") as f:
         f.write(f"Instance {name}: {inst.m} SPPG, {inst.n} sekolah, {inst.R} Granmax, "
                 f"maks {inst.Q} sekolah/kendaraan\n")
         f.write(f"Bobot utama w = {w0} (w=1: murni bensin, w=0: murni waktu)\n\n")
-        for label, (routes, ev, *rest) in list(best.items()) + [(k, v) for k, v in picks.items()]:
+        for label, (routes, ev, *rest) in best.items():
             fit = f", fitness {rest[0]:.4f}" if rest else ""
             f.write(f"== {label}: Rp{ev.cost:,.0f} ({ev.km:.2f} km, {ev.km / inst.km_per_liter:.2f} L), "
                     f"rata-rata tiba {ev.mean_arrival:.1f} mnt, terakhir {ev.makespan:.1f} mnt, "
@@ -223,7 +176,7 @@ def report(name, config, rows, routes_of, histories, nsga, out):
                          out / "fig_konvergensi.png", f"Konvergensi, w = {w0} — {title_inst}")
     viz.plot_boxplot({a: [r["fitness"] for r in main_rows if r["algorithm"] == a] for a in algos},
                      greedy_f, out / "fig_boxplot.png",
-                     f"Fitness akhir {len(seeds)} seed, w = {w0} — {title_inst}")
+                     f"Fitness akhir {n_seeds} seed, w = {w0} — {title_inst}")
     ws_points = {}
     for a in ["Greedy"] + algos:
         pts = []
@@ -233,13 +186,12 @@ def report(name, config, rows, routes_of, histories, nsga, out):
                 r = min(cand, key=lambda x: x["fitness"])
                 pts.append((r["cost_rp"], r["mean_arrival_min"], w))
         ws_points[a] = pts
-    viz.plot_pareto([(ev.cost, ev.mean_arrival) for _, ev in front_sol], ws_points,
-                    out / "fig_pareto.png", f"Trade-off biaya bensin vs waktu — {title_inst}")
+    viz.plot_tradeoff(ws_points, out / "fig_tradeoff.png",
+                      f"Trade-off biaya bensin vs waktu — {title_inst}")
     for a, (routes, ev, _) in best.items():
         viz.plot_routes_static(inst, routes, out / f"fig_rute_{a}.png",
                                f"Rute {a} (w = {w0}): Rp{ev.cost:,.0f}, rata-rata {ev.mean_arrival:.1f} mnt")
     layers = {a: (routes, ev) for a, (routes, ev, _) in best.items()}
-    layers.update(picks)
     viz.map_routes_html(inst, layers, out / "peta_rute.html", cache_path=out / ".osrm_cache.json")
 
     # ringkasan di terminal
@@ -249,10 +201,6 @@ def report(name, config, rows, routes_of, histories, nsga, out):
         print(f"{s['algorithm']:8}{fmt(s['fitness_mean']):>13} ± {fmt(s['fitness_std']):<7}"
               f"{fmt(s['fitness_best']):>9}{s['cost_rp_mean']:>12,.0f}{s['mean_arrival_min_mean']:>10.2f}"
               f"{s['feasible_rate']:>6.0%}{s['runtime_s_mean']:>8.1f}")
-    hv = defaultdict(list)
-    for r in hv_rows:
-        hv[r["algorithm"]].append(r["hypervolume"])
-    print("hypervolume (mean): " + ", ".join(f"{a} {np.mean(v):.4f}" for a, v in hv.items()))
     for t in tests:
         print(f"Mann-Whitney {t['pair']}: p = {t['p_value']:.4g} -> lebih baik: {t['better_median']}"
               f"{'' if t['significant_5pct'] else ' (tidak signifikan)'}")
@@ -277,7 +225,6 @@ def run_instance(name, config, seeds, budget, workers):
     exp = config["experiment"]
     out = ROOT / "results" / name
     out.mkdir(parents=True, exist_ok=True)
-    nsga_budget = budget * len(exp["weights"])  # = total evaluasi 1 algoritma weighted-sum
 
     # tiap run yang selesai langsung disimpan, jadi kalau proses terhenti
     # (mis. RAM habis) menjalankan ulang perintah yang sama akan melanjutkan
@@ -286,11 +233,8 @@ def run_instance(name, config, seeds, budget, workers):
 
     jobs = [(("Greedy", w, 0), task_single, (name, config, "Greedy", w, 0, budget))
             for w in exp["weights"]]
-    # task terlama (ACO, NSGA-II) dikirim duluan agar beban seimbang
-    jobs += [(("NSGA-II", None, seed), task_nsga2, (name, config, seed, nsga_budget))
-             for seed in range(1, seeds + 1)]
     jobs += [((algo, w, seed), task_single, (name, config, algo, w, seed, budget))
-             for algo in ["ACO", "GA", "SA"] for w in exp["weights"] for seed in range(1, seeds + 1)]
+             for algo in ["GA", "HC", "SA"] for w in exp["weights"] for seed in range(1, seeds + 1)]
     results = {key: done[key] for key, *_ in jobs if key in done}
     if results:
         print(f"  {name}: melanjutkan, {len(results)}/{len(jobs)} run sudah ada di checkpoint")
@@ -307,19 +251,14 @@ def run_instance(name, config, seeds, budget, workers):
                   end="", flush=True)
     print()
 
-    rows, routes_of, histories, nsga = [], {}, defaultdict(list), []
-    for res in results.values():
-        if len(res) == 3:
-            row, routes, hist = res
-            rows.append(row)
-            routes_of[(row["algorithm"], row["w"], row["seed"])] = routes
-            if row["algorithm"] != "Greedy":
-                histories[(row["algorithm"], row["w"])].append(hist)
-        else:
-            nsga.append(res)
+    rows, routes_of, histories = [], {}, defaultdict(list)
+    for row, routes, hist in results.values():
+        rows.append(row)
+        routes_of[(row["algorithm"], row["w"], row["seed"])] = routes
+        if row["algorithm"] != "Greedy":
+            histories[(row["algorithm"], row["w"])].append(hist)
     rows.sort(key=lambda r: (r["algorithm"], r["w"], r["seed"]))
-    nsga.sort(key=lambda x: x[0])
-    report(name, config, rows, routes_of, histories, nsga, out)
+    report(name, config, rows, routes_of, histories, out)
 
 
 def main():
