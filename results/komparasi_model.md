@@ -1,6 +1,6 @@
 # Komparasi Model
 
-Pendekatan dua tingkat: **Bagian A** = rute di dalam satu SPPG (algoritma pencarian, Kuliah 2–3); **Bagian B** = pembagian sekolah ke SPPG (pencarian lokal, Kuliah 6) dengan rute tiap SPPG dihitung optimal. Pembanding: Greedy dan metaheuristik terintegrasi (representasi rute penuh) dari eksperimen awal.
+Pendekatan dua tingkat: **Bagian A** = rute di dalam satu SPPG (algoritma pencarian, Kuliah 2–3); **Bagian B** = pembagian sekolah ke SPPG (pencarian lokal, Kuliah 6) dengan rute tiap SPPG dihitung optimal. Pembanding: Greedy dan metaheuristik terintegrasi (HC, SA, GA pada representasi rute penuh, run_experiments.py).
 
 ## Bagian A — rute di dalam satu SPPG
 
@@ -64,10 +64,9 @@ Pembanding terintegrasi (surabaya_utara, 20,000 evaluasi/run, 30 seed):
 | Model | Fitness mean ± std | Terbaik | Selisih rata-rata thd terbaik diketahui | Biaya bensin |
 |---|---|---|---|---|
 | Greedy | 2.1621 ± 0.0000 | 2.1621 | 8.37% | Rp74,562 |
-| HC | 2.0000 ± 0.0053 | 1.9951 | 0.25% | Rp60,688 |
+| HC | 2.0937 ± 0.0387 | 2.0066 | 4.94% | Rp66,979 |
 | SA | 2.0031 ± 0.0178 | 1.9951 | 0.40% | Rp60,893 |
 | GA | 1.9986 ± 0.0050 | 1.9951 | 0.18% | Rp60,548 |
-| ACO | 2.0026 ± 0.0040 | 1.9982 | 0.38% | Rp61,521 |
 
 ### surabaya_6sppg (terbaik diketahui F = 2.0574; Greedy 2.2417)
 
@@ -105,7 +104,6 @@ Pembanding terintegrasi (surabaya_6sppg, 20,000 evaluasi/run, 30 seed):
 | Model | Fitness mean ± std | Terbaik | Selisih rata-rata thd terbaik diketahui | Biaya bensin |
 |---|---|---|---|---|
 | Greedy | 2.2417 ± 0.0000 | 2.2417 | 8.96% | Rp163,086 |
-| HC | 2.1367 ± 0.0341 | 2.0869 | 3.86% | Rp145,901 |
+| HC | 2.6465 ± 0.0852 | 2.4315 | 28.63% | Rp230,914 |
 | SA | 2.1385 ± 0.0246 | 2.1070 | 3.95% | Rp145,778 |
 | GA | 2.0906 ± 0.0160 | 2.0698 | 1.62% | Rp134,323 |
-| ACO | 2.0810 ± 0.0094 | 2.0645 | 1.15% | Rp135,240 |

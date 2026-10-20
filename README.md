@@ -58,12 +58,16 @@ sekolah atau tukar dua sekolah antar-SPPG.
 Semua algoritma Bagian B diberi anggaran 200.000 evaluasi per run, 30 seed, dan mulai dari
 penugasan acak yang sama untuk seed yang sama.
 
-**Pembanding (eksperimen awal, `run_experiments.py`)**: Greedy dan metaheuristik
-*terintegrasi* yang mencari langsung di ruang rute penuh (HC, SA, GA dengan decoder greedy,
-MAX-MIN Ant System, dan NSGA-II untuk Pareto front).
+**Pembanding (`run_experiments.py`)**: Greedy dan metaheuristik *terintegrasi* yang mencari
+langsung di ruang rute penuh, semuanya dari materi kuliah: Random-Restart Hill Climbing
+(permutasi + pemisah kendaraan, 50 tetangga acak swap/insert/inversion per langkah, restart saat
+optimum lokal), Simulated Annealing (representasi sama, pendinginan geometrik, T0 adaptif), dan
+Genetic Algorithm (urutan sekolah + decoder greedy, OX crossover). Masing-masing 20.000 evaluasi
+per run, 30 seed.
 
 Semua metode meminimalkan *weighted sum* ternormalisasi
 `F = w·f1/ref1 + (1−w)·f2/ref2 + penalti·pelanggaran` (bobot utama w = 0,5).
+Trade-off biaya vs waktu didapat dengan menyapu w ∈ {0, 0.25, 0.5, 0.75, 1}.
 
 ## Struktur
 
@@ -80,14 +84,13 @@ src/mbgvrp/
   router.py              rute optimal per SPPG (cepat, untuk fitness Bagian B)
   local_search.py        Bagian B: 6 varian Hill Climbing, SA, GA
   encoding.py            representasi permutasi + operator (pembanding terintegrasi)
-  construct.py           konstruksi Greedy/ACO + decoder GA (pembanding terintegrasi)
-  algorithms.py          HC, SA, GA, ACO, NSGA-II terintegrasi (pembanding)
-  metrics.py             hypervolume
+  construct.py           konstruksi Greedy + decoder GA (pembanding terintegrasi)
+  algorithms.py          Greedy, HC, SA, GA terintegrasi (pembanding)
   viz.py                 grafik & peta rute
   animation_template.html tampilan animasi (Leaflet)
 run_assignment.py        eksperimen Bagian B (paralel, checkpoint) + sweep bobot
 run_search.py            eksperimen Bagian A (sub-masalah nyata + skalabilitas)
-run_experiments.py       eksperimen pembanding terintegrasi (Greedy, HC, SA, GA, ACO, NSGA-II)
+run_experiments.py       eksperimen pembanding terintegrasi (Greedy, HC, SA, GA)
 run_sensitivity.py       analisis sensitivitas (kapasitas, kemacetan, km/L)
 make_animation.py        animasi gaya VisuAlgo (pencarian rute + pengiriman)
 scripts/compare_models.py komparasi semua model di semua instance
@@ -132,14 +135,13 @@ Di peta, rute tiap algoritma bisa dinyalakan/dimatikan lewat panel layer.
 ### Animasi (`results/<instance>/animasi.html`)
 
 Dua tahap, pilih algoritma di kanan atas:
-1. **Pencarian rute**: langkah demi langkah Greedy / HC / SA / GA / ACO / NSGA-II. Baris pseudocode
-   yang sedang dijalankan di-highlight, rute di peta berubah mengikuti solusi saat itu
-   (ACO: garis cokelat = feromon; NSGA-II: grafik sebaran populasi biaya vs waktu).
+1. **Pencarian rute**: langkah demi langkah Greedy / HC / SA / GA. Baris pseudocode
+   yang sedang dijalankan di-highlight, rute di peta berubah mengikuti solusi saat itu.
 2. **Pengiriman**: Granmax bergerak di jalan asli dari SPPG ke sekolah dengan jam berjalan.
 
 Tombol *Sembunyikan kode* menyembunyikan panel pseudocode. Kontrol: spasi = putar/jeda,
 panah kiri/kanan = langkah. Tautan langsung juga bisa, misalnya `animasi.html#stage=2&algo=GA&t=30`.
-Run HC/SA/GA/ACO di animasi sama persis dengan run seed 1 di eksperimen (`trace` tidak memakai rng).
+Run HC/SA/GA di animasi sama persis dengan run seed 1 di eksperimen (`trace` tidak memakai rng).
 Setelah mengubah template, cukup `python make_animation.py --html-only`.
 
 ## Deploy hasil ke web (Vercel)

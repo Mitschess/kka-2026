@@ -39,7 +39,7 @@ GITHUB = "https://github.com/Mitschess/kka-2026"
 
 SEARCH = ["BFS", "IDS", "DFS-B&B", "UCS", "A* (h1)", "A*", "GBFS"]
 LOCAL = ["HC", "HC-Sideways", "Stochastic HC", "Random-Walk HC", "RR-HC", "EHC", "SA", "GA"]
-INTEG = ["HC", "SA", "GA", "ACO"]
+INTEG = ["HC", "SA", "GA"]
 TOL = 1e-9
 
 # ---------------------------------------------------------------------- pustaka
@@ -62,9 +62,6 @@ REFS = {
     "holland": "Holland, J. H. (1975). <i>Adaptation in Natural and Artificial Systems</i>. University of Michigan Press.",
     "goldberg": "Goldberg, D. E. (1989). <i>Genetic Algorithms in Search, Optimization, and Machine Learning</i>. Addison-Wesley.",
     "prins": "Prins, C. (2004). A simple and effective evolutionary algorithm for the vehicle routing problem. <i>Computers &amp; Operations Research</i>, 31(12), 1985–2002.",
-    "dorigo": "Dorigo, M., &amp; Stützle, T. (2004). <i>Ant Colony Optimization</i>. MIT Press.",
-    "mmas": "Stützle, T., &amp; Hoos, H. H. (2000). MAX–MIN Ant System. <i>Future Generation Computer Systems</i>, 16(8), 889–914.",
-    "nsga2": "Deb, K., Pratap, A., Agarwal, S., &amp; Meyarivan, T. (2002). A fast and elitist multiobjective genetic algorithm: NSGA-II. <i>IEEE Transactions on Evolutionary Computation</i>, 6(2), 182–197.",
     "mann": "Mann, H. B., &amp; Whitney, D. R. (1947). On a test of whether one of two random variables is stochastically larger than the other. <i>Annals of Mathematical Statistics</i>, 18(1), 50–60.",
     "holm": "Holm, S. (1979). A simple sequentially rejective multiple test procedure. <i>Scandinavian Journal of Statistics</i>, 6(2), 65–70.",
     "derrac": "Derrac, J., García, S., Molina, D., &amp; Herrera, F. (2011). A practical tutorial on the use of nonparametric statistical tests as a methodology for comparing evolutionary and swarm intelligence algorithms. <i>Swarm and Evolutionary Computation</i>, 1(1), 3–18.",
@@ -205,11 +202,6 @@ def load_all(config):
         X["ls_tests"] = {r["pair"]: r for r in read_csv(res / "ls_stat_tests.csv")}
         X["ls_best"] = json.loads((res / "ls_best.json").read_text(encoding="utf-8"))
         X["integ"] = {r["algorithm"]: floats(r) for r in read_csv(res / "summary_main_w.csv")}
-        X["front"] = [floats(r) for r in read_csv(res / "nsga2_front.csv")]
-        hv = defaultdict(list)
-        for r in read_csv(res / "hypervolume.csv"):
-            hv[r["algorithm"]].append(float(r["hypervolume"]))
-        X["hv"] = {a: float(np.mean(v)) for a, v in hv.items()}
         X["sweep"] = [floats(r) for r in read_csv(res / "ls_sweep.csv")] if (res / "ls_sweep.csv").exists() else []
         X["sens"] = [floats(r) for r in read_csv(res / "sensitivity.csv")] if (res / "sensitivity.csv").exists() else []
         data[name] = X
@@ -352,8 +344,8 @@ Heuristik admissible baru berbasis penugasan slot membuat A* mengekspansi {num(r
 kali lebih sedikit node daripada UCS. Di Bagian B ({seeds} seed, {num(budget, 0)} evaluasi per run),
 semua algoritma mencapai solusi terbaik yang sama pada instance kecil. Pada instance {IB.m} SPPG dan
 {IB.n} sekolah, {topB} memberi rata-rata terbaik ({num(B['ls'][topB]['fitness_mean'], 4)}) dan
-{len(better_than_integ)} dari 8 algoritma lebih baik daripada metaheuristik terintegrasi terbaik dari
-eksperimen awal ({integ_best_B}, {num(ib['fitness_mean'], 4)}). Rute terbaik menghemat biaya bensin
+{'kedelapan' if len(better_than_integ) == 8 else str(len(better_than_integ)) + ' dari 8'} algoritma lebih baik
+daripada metaheuristik terintegrasi terbaik ({integ_best_B}, {num(ib['fitness_mean'], 4)}). Rute terbaik menghemat biaya bensin
 {pct(sav_B)} dibanding heuristik Greedy.</p>
 <p class="kw"><b>Kata kunci:</b> MDVRP, algoritma pencarian, A*, heuristik admissible, Hill Climbing,
 Enforced Hill Climbing, Simulated Annealing, Genetic Algorithm, Makan Bergizi Gratis, Surabaya.</p>""")
@@ -698,10 +690,12 @@ loop:                                  loop:
 <ul>
 <li><b>Greedy</b>: heuristik konstruktif yang setiap langkahnya menambahkan sekolah dengan biaya inkremental
 terkecil, baik di ujung rute yang belum penuh maupun dengan membuka Granmax baru {C('clarke')}.</li>
-<li><b>Metaheuristik terintegrasi</b> dari eksperimen awal proyek ini, yang mencari langsung di ruang rute
-penuh tanpa dekomposisi: HC dan SA pada permutasi sekolah dengan pemisah Granmax, GA dengan kromosom urutan
-sekolah dan decoder greedy {C('prins')}, MAX-MIN Ant System {C('dorigo', 'mmas')}, dan NSGA-II {C('nsga2')}
-untuk Pareto front. Masing-masing dijalankan {exp['n_seeds']} seed dengan
+<li><b>Metaheuristik terintegrasi</b>, yaitu HC, SA, dan GA yang mencari langsung di ruang rute penuh tanpa
+dekomposisi. HC dan SA bekerja pada permutasi sekolah yang diselingi pemisah Granmax, dengan tetangga dari
+operasi <i>swap</i>, <i>insert</i>, atau <i>inversion</i>. HC memeriksa
+{config['algorithms']['hc']['n_neighbors']} tetangga acak per langkah, pindah ke yang terbaik bila lebih baik,
+dan mulai ulang dari solusi acak bila tidak ada yang lebih baik. GA memakai kromosom urutan sekolah yang
+diubah menjadi rute oleh decoder greedy {C('prins')}. Masing-masing dijalankan {exp['n_seeds']} seed dengan
 {num(exp['budget_evals'], 0)} evaluasi per run.</li>
 </ul>""")
 
@@ -726,7 +720,7 @@ koreksi Holm {C('holm')}. Uji non-parametrik dipakai karena hasil metaheuristik 
 normal {C('derrac')}.</li>
 <li><b>Trade-off dan sensitivitas:</b> RR-HC dipilih karena direkomendasikan materi kuliah, cepat, dan (seperti
 terlihat di subbab 3.3) tidak berbeda signifikan dari algoritma terbaik. RR-HC dijalankan pada 5 bobot
-<i>w</i> (10 seed per bobot) dan dibandingkan dengan Pareto front NSGA-II. Algoritma yang sama dijalankan ulang dengan kapasitas 1–4
+<i>w</i> (10 seed per bobot) untuk memetakan trade-off biaya dan waktu. Algoritma yang sama dijalankan ulang dengan kapasitas 1–4
 sekolah per Granmax, faktor kemacetan 1–10 kali waktu tempuh, dan konsumsi 10 atau 14 km/liter.</li>
 </ul>""")
 
@@ -742,7 +736,7 @@ dijalankan paralel (<code>ProcessPoolExecutor</code>, 4 proses) dengan checkpoin
 src/mbgvrp/search.py         Bagian A: BFS, IDS, DFS-B&amp;B, UCS, A* (h1, h2), GBFS
 src/mbgvrp/router.py         evaluator rute optimal per SPPG (dipakai Bagian B)
 src/mbgvrp/local_search.py   Bagian B: 6 varian Hill Climbing, SA, GA
-src/mbgvrp/algorithms.py     pembanding terintegrasi: Greedy, HC, SA, GA, ACO, NSGA-II
+src/mbgvrp/algorithms.py     pembanding terintegrasi: Greedy, HC, SA, GA
 run_search.py                eksperimen Bagian A
 run_assignment.py            eksperimen Bagian B (+ sweep bobot)
 run_sensitivity.py           analisis sensitivitas
@@ -855,7 +849,7 @@ menghitung optimum yang sama dengan enumerasi yang lebih cepat lagi.</p>""")
     P(f"""<p>{t1l} dan {t2l} menyajikan hasilnya. Pada <b>{small}</b> ({S['inst'].m} SPPG, {S['inst'].n} sekolah,
 10<sup>{space_S:.1f}</sup> kemungkinan pembagian) {'<b>semua delapan algoritma mencapai solusi yang sama di semua ' + str(seeds) + ' seed</b>' if perfect_S else 'hampir semua run mencapai solusi terbaik yang sama'}
 (F = {num(bkS, 4)}), termasuk HC biasa yang hanya butuh sekitar {num(Ls['HC']['n_evals_mean'], 0)} evaluasi.
-{'Nilai ini juga sama dengan nilai terbaik yang pernah ditemukan metaheuristik terintegrasi di eksperimen awal.' if abs(integ_best_S - bkS) < 1e-6 else ('Metaheuristik terintegrasi di eksperimen awal paling baik hanya mencapai ' + num(integ_best_S, 4) + '.')}
+{'Nilai ini juga sama dengan nilai terbaik yang pernah ditemukan metaheuristik terintegrasi.' if abs(integ_best_S - bkS) < 1e-6 else ('Metaheuristik terintegrasi paling baik hanya mencapai ' + num(integ_best_S, 4) + '.')}
 Karena delapan algoritma yang cara kerjanya berbeda konvergen ke titik yang sama dari 30 titik awal acak,
 solusi ini kemungkinan besar optimum global instance kecil. Instance kecil tidak membedakan algoritma; yang
 membedakan adalah biayanya: HC biasa paling hemat evaluasi, sedangkan SA dan GA menghabiskan seluruh anggaran.</p>
@@ -906,7 +900,7 @@ anggaran. GA bergerak lebih lambat di awal karena setiap individu baru dievaluas
     P(D.h2("3.4", "Komparasi Menyeluruh"))
     fk, fkl = D.figure("../results/fig_komparasi.png",
                        "Selisih fitness rata-rata terhadap solusi terbaik yang diketahui untuk Greedy, metaheuristik "
-                       "terintegrasi (eksperimen awal), dan pendekatan dua tingkat.", width="100%")
+                       "terintegrasi, dan pendekatan dua tingkat.", width="100%")
     rows = []
     for a in ["Greedy"] + INTEG:
         s = B["integ"][a]
@@ -920,12 +914,17 @@ anggaran. GA bergerak lebih lambat di awal karena setiap individu baru dievaluas
                      pct(s["gap_mean_pct"], 2), rp(s["cost_rp_mean"]), num(s["runtime_s_mean"], 1) + " s"])
     t, tl = D.table(["Metode", "Fitness rata-rata", "Terbaik", "Selisih thd terbaik diketahui", "Biaya bensin rata-rata",
                      "Waktu/run"], rows, f"Pendekatan dua tingkat vs pembanding di {big} (w = {num(w0, 1)}).", cls="num")
+    hc_i, hc_b = B["integ"]["HC"]["fitness_mean"], B["ls"]["HC"]["fitness_mean"]
+    hc_note = (f" HC terintegrasi bahkan lebih buruk daripada Greedy ({num(hc_i, 4)} vs "
+               f"{num(B['integ']['Greedy']['fitness_mean'], 4)}), padahal HC biasa di ruang pembagian mencapai "
+               f"{num(hc_b, 4)}." if hc_i > B["integ"]["Greedy"]["fitness_mean"] else "")
     P(f"""<p>{fkl} dan {tl} membandingkan pendekatan dua tingkat dengan pembanding. Metaheuristik
-terintegrasi terbaik di eksperimen awal adalah {integ_best_B} dengan rata-rata {num(ib['fitness_mean'], 4)},
-atau {pct((ib['fitness_mean'] - bkB) / bkB * 100, 2)} di atas solusi terbaik yang diketahui, dan nilai
-terbaiknya ({num(ib['fitness_best'], 4)}) tidak pernah mencapai solusi itu. Sebaliknya,
-{len(better_than_integ)} dari 8 algoritma dua tingkat memiliki rata-rata lebih baik daripada {integ_best_B},
-termasuk {', '.join(a for a in better_than_integ if a in ('HC', 'Stochastic HC', 'HC-Sideways')) or 'varian HC sederhana'}.
+terintegrasi terbaik adalah {integ_best_B} dengan rata-rata {num(ib['fitness_mean'], 4)}, atau
+{pct((ib['fitness_mean'] - bkB) / bkB * 100, 2)} di atas solusi terbaik yang diketahui, dan nilai
+terbaiknya ({num(ib['fitness_best'], 4)}) {'tidak pernah mencapai solusi itu' if ib['fitness_best'] > bkB + 1e-6 else 'juga mencapai solusi itu'}.
+Sebaliknya, {'kedelapan' if len(better_than_integ) == 8 else str(len(better_than_integ)) + ' dari 8'} algoritma
+dua tingkat memiliki rata-rata lebih baik daripada {integ_best_B}, termasuk
+{join_id([a for a in better_than_integ if a in ('HC', 'HC-Sideways', 'Stochastic HC')]) or 'varian HC sederhana'}.{hc_note}
 Algoritma yang sama (HC, SA, GA) jauh lebih kuat di ruang pembagian daripada di ruang rute penuh. Ada tiga
 alasan. Pertama, ruang pembagian (10<sup>{space_B:.0f}</sup>) jauh lebih kecil daripada ruang permutasi rute.
 Kedua, setiap titik di ruang pembagian langsung dinilai dengan rute <i>terbaiknya</i>, sehingga pencarian
@@ -936,47 +935,39 @@ pemanfaatan struktur masalah sering lebih menentukan daripada pilihan metaheuris
     # ---- 3.5 Trade-off
     P(D.h2("3.5", "Trade-off Biaya Bensin dan Waktu Tiba"))
     sweep = B["sweep"]
-    fr = B["front"]
-    c_min, c_max = min(r["cost_rp"] for r in fr), max(r["cost_rp"] for r in fr)
-    t_min, t_max = min(r["mean_arrival_min"] for r in fr), max(r["mean_arrival_min"] for r in fr)
     if sweep:
         sweep_algo = sweep[0]["algorithm"]
         pts = {}
         for r in sweep:
             if r["w"] not in pts or r["fitness"] < pts[r["w"]]["fitness"]:
                 pts[r["w"]] = r
-        fp, fpl = D.figure(f"../results/{big}/fig_ls_pareto.png",
-                           f"Solusi {sweep_algo} + rute optimal untuk lima bobot <i>w</i> dibandingkan dengan Pareto "
-                           f"front NSGA-II terintegrasi di {big}.", width="88%")
-        dom = 0
-        for w_, r in pts.items():
-            if any(f["cost_rp"] <= r["cost_rp"] and f["mean_arrival_min"] <= r["mean_arrival_min"]
-                   and (f["cost_rp"] < r["cost_rp"] or f["mean_arrival_min"] < r["mean_arrival_min"]) for f in fr):
-                dom += 1
+        fp, fpl = D.figure(f"../results/{big}/fig_ls_tradeoff.png",
+                           f"Solusi terbaik {sweep_algo} + rute optimal untuk lima bobot <i>w</i> di {big}.",
+                           width="80%")
         notes = []
-        if 0.25 in pts and pts[0.25]["mean_arrival_min"] <= pts[0.0]["mean_arrival_min"] + 0.05                 and pts[0.25]["cost_rp"] < pts[0.0]["cost_rp"]:
+        if (0.25 in pts and pts[0.25]["mean_arrival_min"] <= pts[0.0]["mean_arrival_min"] + 0.05
+                and pts[0.25]["cost_rp"] < pts[0.0]["cost_rp"]):
             notes.append(f"Bobot ekstrem mengabaikan salah satu objektif sepenuhnya: solusi <i>w</i> = 0,25 hampir "
                          f"sama cepatnya dengan <i>w</i> = 0 tetapi {rp(pts[0.0]['cost_rp'] - pts[0.25]['cost_rp'])} "
-                         f"lebih murah.")
-        if c_min - pts[1.0]["cost_rp"] < 200 and t_max < pts[1.0]["mean_arrival_min"] - 0.5:
-            notes.append(f"Hal yang sama terjadi di ujung lain: titik termurah NSGA-II ({rp(c_min)}) hanya "
-                         f"{rp(c_min - pts[1.0]['cost_rp'])} lebih mahal daripada solusi <i>w</i> = 1, tetapi "
-                         f"makanan tiba {num(pts[1.0]['mean_arrival_min'] - t_max, 1)} menit lebih cepat.")
+                         f"lebih murah, sehingga <i>w</i> = 0 sebaiknya tidak dipakai.")
         extreme_note = (" ".join(notes) + " ") if notes else ""
+        w_mid = 0.75 if 0.75 in pts else 0.5
+        p1, pm = pts[1.0], pts[w_mid]
         srows = [[num(w_, 2), rp(r["cost_rp"]), num(r["mean_arrival_min"], 1) + " mnt",
                   num(r["makespan_min"], 1) + " mnt", str(int(r["n_vehicles"]))] for w_, r in sorted(pts.items())]
         t, tl = D.table(["Bobot w", "Biaya bensin", "Rata-rata tiba", "Tiba terakhir", "Granmax"], srows,
                         f"Solusi terbaik {sweep_algo} + rute optimal per bobot di {big} "
                         f"(w = 1: murni bensin, w = 0: murni waktu).", cls="num")
         P(f"""<p>Bobot <i>w</i> mengatur prioritas antara bensin dan waktu. {tl} dan {fpl} menunjukkan solusi
-{sweep_algo} untuk lima bobot. Solusi termurah (<i>w</i> = 1) menghabiskan {rp(pts[1.0]['cost_rp'])} dengan
-rata-rata tiba {num(pts[1.0]['mean_arrival_min'], 1)} menit, sedangkan solusi tercepat (<i>w</i> = 0)
-{num(pts[0.0]['mean_arrival_min'], 1)} menit dengan biaya {rp(pts[0.0]['cost_rp'])}. Pareto front NSGA-II
-terintegrasi dari eksperimen awal berisi {len(fr)} solusi dari {rp(c_min)} ({num(t_max, 1)} menit) sampai
-{rp(c_max)} ({num(t_min, 1)} menit). {'Tidak ada' if dom == 0 else str(dom)} dari {len(pts)} solusi dua tingkat
-yang didominasi oleh front NSGA-II{', artinya setiap titik dua tingkat berada di atau di luar front tersebut' if dom == 0 else ''}.
-{extreme_note}NSGA-II tetap berguna untuk menyajikan banyak pilihan sekaligus, sedangkan pendekatan dua tingkat
-dengan bobot tertentu menghasilkan titik yang lebih baik untuk bobot itu.</p>{t}{fp}""")
+{sweep_algo} untuk lima bobot. Solusi termurah (<i>w</i> = 1) menghabiskan {rp(p1['cost_rp'])} dengan
+rata-rata tiba {num(p1['mean_arrival_min'], 1)} menit dan hanya {int(p1['n_vehicles'])} Granmax, sedangkan solusi
+tercepat (<i>w</i> = 0) {num(pts[0.0]['mean_arrival_min'], 1)} menit dengan biaya {rp(pts[0.0]['cost_rp'])}.
+Hubungannya tidak linear. Dari <i>w</i> = 1 ke <i>w</i> = {num(w_mid, 2)}, makanan tiba
+{num(p1['mean_arrival_min'] - pm['mean_arrival_min'], 1)} menit lebih cepat dengan tambahan biaya
+{rp(pm['cost_rp'] - p1['cost_rp'])} per hari. Sesudah itu, setiap pengurangan waktu tiba menjadi jauh lebih mahal.
+Bagi pengelola SPPG, bobot di sekitar 0,5–0,75 adalah titik kompromi yang baik. {extreme_note}Pendekatan
+<i>weighted sum</i> hanya menemukan satu titik per bobot; untuk memetakan seluruh pilihan kompromi diperlukan
+lebih banyak bobot atau metode multi-objektif khusus.</p>{t}{fp}""")
     else:
         P("<p>(Jalankan <code>python run_assignment.py --sweep RR-HC --seeds 10</code> untuk bagian ini.)</p>")
 

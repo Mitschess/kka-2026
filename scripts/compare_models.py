@@ -19,7 +19,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 SEARCH = ["BFS", "IDS", "DFS-B&B", "UCS", "A* (h1)", "A*", "GBFS"]
 LOCAL = ["HC", "HC-Sideways", "Stochastic HC", "Random-Walk HC", "RR-HC", "EHC", "SA", "GA"]
-INTEGRATED = ["HC", "SA", "GA", "ACO"]
+INTEGRATED = ["HC", "SA", "GA"]
 
 SEARCH_TRAITS = {
     "BFS": ("buta", "antrian FIFO", "tidak (hanya bila biaya langkah sama)", "O(b^d)"),
@@ -55,7 +55,7 @@ def main():
                     "Pendekatan dua tingkat: **Bagian A** = rute di dalam satu SPPG (algoritma pencarian, "
                     "Kuliah 2–3); **Bagian B** = pembagian sekolah ke SPPG (pencarian lokal, Kuliah 6) "
                     "dengan rute tiap SPPG dihitung optimal. Pembanding: Greedy dan metaheuristik "
-                    "terintegrasi (representasi rute penuh) dari eksperimen awal.\n"]
+                    "terintegrasi (HC, SA, GA pada representasi rute penuh, run_experiments.py).\n"]
 
     # ------------------------------------------------------------- Bagian A
     real = read_csv(out / "search_real.csv")
@@ -124,7 +124,7 @@ def main():
             md.append(f"- {t['pair']}: p(Holm) = {float(t['p_holm']):.3g}, rata-rata lebih baik: {t['better_mean']}")
         md.append("")
 
-        # pembanding terintegrasi (eksperimen awal)
+        # pembanding terintegrasi (run_experiments.py)
         integ = {r["algorithm"]: r for r in read_csv(res / "summary_main_w.csv")}
         md += [f"Pembanding terintegrasi ({name}, {config['experiment']['budget_evals']:,} evaluasi/run, "
                f"{config['experiment']['n_seeds']} seed):\n",
@@ -176,7 +176,7 @@ def main():
                "Selisih rata-rata terhadap terbaik diketahui (%)", "")
         ax.grid(axis="y", visible=False)
     handles = [plt.Rectangle((0, 0), 1, 1, color=c) for *_, c in groups]
-    fig.legend(handles, ["Greedy (baseline)", "Metaheuristik terintegrasi (eksperimen awal)",
+    fig.legend(handles, ["Greedy (baseline)", "Metaheuristik terintegrasi (HC, SA, GA)",
                          "Dua tingkat: pencarian lokal + rute optimal"],
                loc="lower center", ncol=3, frameon=False, fontsize=9.5)
     fig.suptitle(f"Kualitas rata-rata {config['assignment']['n_seeds']} seed (w = "

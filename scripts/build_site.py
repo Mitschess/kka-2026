@@ -9,26 +9,24 @@ import csv
 import html
 import json
 import shutil
-from collections import defaultdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "site"
 FILES = ["animasi.html", "peta_rute.html", "best_routes.txt"]
 FIGS = [
-    ("fig_pareto.png", "Trade-off biaya bensin vs waktu tiba (Pareto front NSGA-II + weighted sum)"),
-    ("fig_konvergensi.png", "Konvergensi HC, SA, GA, ACO (median 30 seed)"),
+    ("fig_tradeoff.png", "Trade-off biaya bensin vs waktu tiba (sweep bobot w = 0 … 1)"),
+    ("fig_konvergensi.png", "Konvergensi HC, SA, GA (median 30 seed)"),
     ("fig_boxplot.png", "Sebaran fitness akhir 30 seed"),
     ("fig_rute_Greedy.png", "Rute terbaik Greedy"),
     ("fig_rute_HC.png", "Rute terbaik HC"),
     ("fig_rute_SA.png", "Rute terbaik SA"),
     ("fig_rute_GA.png", "Rute terbaik GA"),
-    ("fig_rute_ACO.png", "Rute terbaik ACO"),
-    ("fig_sens_kapasitas_biaya.png", "Sensitivitas kapasitas: biaya"),
+        ("fig_sens_kapasitas_biaya.png", "Sensitivitas kapasitas: biaya"),
     ("fig_sens_kapasitas_waktu.png", "Sensitivitas kapasitas: waktu"),
     ("fig_sens_macet.png", "Sensitivitas kemacetan vs batas 3 jam"),
 ]
-ORDER = ["Greedy", "HC", "SA", "GA", "ACO"]
+ORDER = ["Greedy", "HC", "SA", "GA"]
 
 
 def read_csv(path):
@@ -47,9 +45,6 @@ def instance_section(name, cfg):
     inst = cfg["instances"][name]
     n_sppg, n_sch = len(inst["sppg_ids"]), inst["n_schools"]
     summary = {r["algorithm"]: r for r in read_csv(src / "summary_main_w.csv")}
-    hv = defaultdict(list)
-    for r in read_csv(src / "hypervolume.csv"):
-        hv[r["algorithm"]].append(float(r["hypervolume"]))
     best = min((summary[a] for a in ORDER if a in summary), key=lambda r: float(r["fitness_mean"]))
 
     rows = []
@@ -61,11 +56,7 @@ def instance_section(name, cfg):
         cls = ' class="best"' if r is best else ""
         rows.append(f"<tr{cls}><td>{a}</td><td>{float(r['fitness_mean']):.4f}{std}</td>"
                     f"<td>Rp{float(r['cost_rp_mean']):,.0f}</td><td>{float(r['mean_arrival_min_mean']):.1f} mnt</td>"
-                    f"<td>{float(r['runtime_s_mean']):.1f} s</td>"
-                    f"<td>{sum(hv[a]) / len(hv[a]):.3f}</td></tr>")
-    if hv.get("NSGA-II"):
-        rows.append(f"<tr><td>NSGA-II</td><td colspan=4 class=muted>multi-objektif (Pareto front), "
-                    f"tidak dinilai dengan satu fitness</td><td>{sum(hv['NSGA-II']) / len(hv['NSGA-II']):.3f}</td></tr>")
+                    f"<td>{float(r['runtime_s_mean']):.1f} s</td></tr>")
 
     figs = "".join(
         f'<figure><a href="{name}/{f}"><img src="{name}/{f}" alt="{html.escape(c)}" loading="lazy"></a>'
@@ -81,12 +72,11 @@ def instance_section(name, cfg):
   </div>
   <div class=tablewrap><table>
     <thead><tr><th>Algoritma</th><th>Fitness (mean ± std)</th><th>Biaya bensin</th>
-      <th>Rata-rata tiba</th><th>Waktu/run</th><th>Hypervolume</th></tr></thead>
+      <th>Rata-rata tiba</th><th>Waktu/run</th></tr></thead>
     <tbody>{''.join(rows)}</tbody>
   </table></div>
   <p class=muted>Bobot w = {cfg['experiment']['main_weight']}, {cfg['experiment']['n_seeds']} seed,
-    {cfg['experiment']['budget_evals']:,} evaluasi per run. Fitness lebih kecil = lebih baik;
-    hypervolume lebih besar = trade-off lebih baik.</p>
+    {cfg['experiment']['budget_evals']:,} evaluasi per run. Fitness lebih kecil = lebih baik.</p>
   <div class=gallery>{figs}</div>
 </section>"""
 
@@ -106,7 +96,7 @@ def main():
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rute MBG Surabaya</title>
-<meta name="description" content="Optimasi rute distribusi Makan Bergizi Gratis dari SPPG ke sekolah di Surabaya: Greedy, Hill Climbing, SA, GA, ACO, NSGA-II.">
+<meta name="description" content="Optimasi rute distribusi Makan Bergizi Gratis dari SPPG ke sekolah di Surabaya: Greedy, Hill Climbing, SA, GA.">
 <style>
   :root {{ --bg:#f6f6f4; --surface:#fff; --ink:#1d1d1b; --muted:#6b6b66; --line:#e2e2de; --accent:#2a78d6; --best:#eaf2fc; }}
   @media (prefers-color-scheme: dark) {{
@@ -147,7 +137,7 @@ def main():
     bensin dan rata-rata waktu tiba makanan, dengan batas 3 sekolah per Granmax dan 3 jam sejak
     makanan selesai dimasak.</p>
   <ul>
-    <li>Algoritma: Greedy (baseline), Hill Climbing (random restart), Simulated Annealing, Genetic Algorithm, Ant Colony Optimization (MAX-MIN), NSGA-II.</li>
+    <li>Algoritma: Greedy (baseline), Random-Restart Hill Climbing, Simulated Annealing, Genetic Algorithm (semua dari materi kuliah).</li>
     <li>Data: sekolah dari OpenStreetMap, lokasi SPPG dari berita (koordinat perkiraan), jarak &amp; waktu tempuh jalan asli dari OSRM.</li>
   </ul>
   {sections}

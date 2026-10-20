@@ -10,9 +10,8 @@ import numpy as np  # noqa: E402
 import requests  # noqa: E402
 
 # warna mengikuti entitas (algoritma), urutan tetap & sudah divalidasi CVD
-COLORS = {"Greedy": "#52514e", "HC": "#e87ba4", "SA": "#2a78d6", "GA": "#eb6834", "ACO": "#1baf7a",
-          "NSGA-II": "#4a3aa7"}
-MARKERS = {"Greedy": "s", "HC": "v", "SA": "o", "GA": "^", "ACO": "D", "NSGA-II": "."}
+COLORS = {"Greedy": "#52514e", "SA": "#2a78d6", "GA": "#eb6834", "HC": "#1baf7a"}
+MARKERS = {"Greedy": "s", "SA": "o", "GA": "^", "HC": "D"}
 # palet kategorikal 8 slot (urutan tetap) untuk Bagian A (pencarian) & B (pencarian lokal)
 PALETTE8 = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"]
 SEARCH_ORDER = ["BFS", "IDS", "DFS-B&B", "UCS", "A* (h1)", "A*", "GBFS"]
@@ -141,19 +140,22 @@ def plot_convergence_log(histories, budget, ref_f, ref_label, path, title, color
     _save(fig, path)
 
 
-def plot_pareto(nsga_front, ws_points, path, title):
-    """nsga_front: [(biaya, waktu)] gabungan seluruh seed NSGA-II (sudah non-dominated)
-    ws_points: {algo: [(biaya, waktu, w)]} solusi terbaik weighted-sum per bobot."""
+def plot_tradeoff(ws_points, path, title, annotate=False):
+    """ws_points: {algo: [(biaya, waktu, w)]} solusi terbaik weighted-sum per bobot w.
+    annotate=True: tulis nilai w di samping tiap titik."""
     fig, ax = plt.subplots(figsize=(7.5, 5))
-    f = sorted(nsga_front)
-    ax.step([p[0] / 1000 for p in f], [p[1] for p in f], where="post", color=COLORS["NSGA-II"],
-            linewidth=2, label="NSGA-II (Pareto front)")
-    ax.scatter([p[0] / 1000 for p in f], [p[1] for p in f], s=14, color=COLORS["NSGA-II"])
     for algo, pts in ws_points.items():
-        col = COLORS.get(algo) or LS_COLORS.get(algo, "#2a78d6")
+        col = COLORS.get(algo) or LS_COLORS.get(algo, "#2a78d6")   # COLORS: eksperimen lama, LS: Bagian B
+        pts = sorted(pts)
+        ax.plot([p[0] / 1000 for p in pts], [p[1] for p in pts], color=col, linewidth=1.2,
+                alpha=0.6)
         ax.scatter([p[0] / 1000 for p in pts], [p[1] for p in pts], s=70, marker=MARKERS.get(algo, "o"),
                    facecolor="none" if algo != "Greedy" else col,
-                   edgecolor=col, linewidth=1.8, label=f"{algo} (weighted sum)")
+                   edgecolor=col, linewidth=1.8, label=f"{algo} (w = 0 … 1)")
+        if annotate:
+            for c, t, w in pts:
+                ax.annotate(f"w = {w:g}", (c / 1000, t), xytext=(6, 4), textcoords="offset points",
+                            fontsize=8.5, color=INK2)
     _style(ax, title, "Biaya bensin total (ribu Rp)", "Rata-rata waktu tiba di sekolah (menit)")
     ax.legend(frameon=False)
     _save(fig, path)

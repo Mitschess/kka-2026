@@ -1,4 +1,4 @@
-"""Konstruksi solusi langkah demi langkah (dipakai Greedy dan ACO).
+"""Konstruksi solusi langkah demi langkah (Greedy) dan decoder untuk GA.
 
 Di setiap langkah, opsi yang tersedia untuk tiap sekolah j yang belum dilayani:
   (a) tambahkan j di ujung rute yang masih punya kapasitas (< Q sekolah), atau
@@ -7,12 +7,11 @@ Biaya inkremental opsi = w * dBiaya/ref_cost + (1-w) * waktu_tiba_j/(n*ref_time)
 sehingga konsisten dengan fungsi objektif skalar.
 
 Greedy memilih opsi dengan biaya inkremental terkecil (deterministik).
-ACO memilih secara probabilistik dengan bobot tau^alpha * eta^beta, eta = 1/biaya.
 """
 import numpy as np
 
 
-def construct(inst, w, rng=None, tau=None, alpha=1.0, beta=1.0, trace=None):
+def greedy(inst, w, trace=None):
     """trace: callback opsional trace(event, **data) untuk animasi (tidak mengubah hasil)."""
     m, n, Q = inst.m, inst.n, inst.Q
     D, T = inst.D, inst.T
@@ -49,16 +48,7 @@ def construct(inst, w, rng=None, tau=None, alpha=1.0, beta=1.0, trace=None):
         if not ok.any():
             ok[:] = True
 
-        if tau is None:  # greedy
-            flat = np.where(ok, delta, np.inf).argmin()
-        else:
-            tau_sub = tau[frm[:, None], Unodes[None, :]]
-            if alpha != 1.0:
-                tau_sub = tau_sub ** alpha
-            weight = (tau_sub * (delta + 1e-9) ** -beta * ok).ravel()
-            cum = np.cumsum(weight)  # roulette wheel (lebih cepat dari rng.choice(p=...))
-            flat = min(int(np.searchsorted(cum, rng.random() * cum[-1], side="right")),
-                       weight.size - 1)
+        flat = np.where(ok, delta, np.inf).argmin()
         row, col = divmod(int(flat), U.size)
         s = int(U[col])
 
@@ -81,10 +71,6 @@ def construct(inst, w, rng=None, tau=None, alpha=1.0, beta=1.0, trace=None):
                   delta=float(delta[row, col]), n_options=int(ok.sum()))
 
     return [(d, seq) for d, seq in routes]
-
-
-def greedy(inst, w, trace=None):
-    return construct(inst, w, trace=trace)
 
 
 def decode_order(inst, order, w):

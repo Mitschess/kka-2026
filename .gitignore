@@ -10,3 +10,4 @@ report/node_modules/
 report/.tile_cache/
 results/**/.ls_*.pkl
 results/**/.search_*.pkl
+~$*

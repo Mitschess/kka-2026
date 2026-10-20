@@ -68,9 +68,6 @@
             border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; font-size: 12px; }
   #legend div { display: flex; align-items: center; gap: 6px; }
   #legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
-  #scatterBox { position: absolute; left: 10px; bottom: 22px; z-index: 500; background: rgba(255,255,255,.96);
-                border: 1px solid var(--line); border-radius: 10px; padding: 6px 8px; display: none; }
-  #scatterBox .cap { font-size: 12px; color: var(--muted); }
   .depot { width: 34px; height: 22px; border-radius: 6px; color: #fff; font: 700 10px/22px system-ui, sans-serif;
            text-align: center; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
   .van { position: relative; }
@@ -103,8 +100,6 @@
     <div id="map" aria-label="Peta rute"></div>
     <div id="hud"></div>
     <div id="legend"></div>
-    <div id="scatterBox"><canvas id="scatter" width="300" height="200"></canvas>
-      <div class="cap">● F1 (Pareto) &nbsp;● F2 &nbsp;● F3+ &nbsp;○ melanggar</div></div>
   </div>
   <aside id="panel">
     <div class="sec">
@@ -171,7 +166,6 @@ L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_L
   { maxNativeZoom: 16, maxZoom: 19, opacity: 0.8 }).addTo(map);
 map.fitBounds(L.latLngBounds(NODES.map((n) => [n.lat, n.lon])).pad(0.08));
 
-const pherLayer = L.layerGroup().addTo(map);
 const roadLayer = L.layerGroup().addTo(map);
 const routeLayer = L.layerGroup().addTo(map);
 const schoolLayer = L.layerGroup().addTo(map);
@@ -235,9 +229,7 @@ function routePath(r) {
 }
 function drawSearch() {
   const A = DATA.algos[S.algo], F = A.frames, f = F[S.frame];
-  pherLayer.clearLayers(); routeLayer.clearLayers();
-  for (const [a, b, v] of (f.ph || []))
-    L.polyline(leg(a, b), { color: "#8a5a2b", weight: 2 + 9 * v, opacity: 0.08 + 0.4 * v, interactive: false }).addTo(pherLayer);
+  routeLayer.clearLayers();
   const owner = new Array(N).fill(-1);
   for (const r of f.r) {
     const over = r.length - 1 > DATA.Q;
@@ -257,40 +249,8 @@ function drawSearch() {
   $("hud").innerHTML = `<div class="sm">${S.algo} · langkah ${S.frame + 1}/${F.length}</div>
     <div class="big">${f.i["Biaya bensin"] || "–"}</div>
     <div class="sm">${f.i["Rata-rata tiba"] ? "rata-rata tiba " + f.i["Rata-rata tiba"] + " · " : ""}${fv}${f.i.Melanggar ? " · <b style='color:#c4314b'>melanggar " + f.i.Melanggar + "</b>" : ""}</div>`;
-  drawScatter(f.sc);
   $("scrub").max = F.length - 1; $("scrub").value = S.frame;
   $("pos").textContent = `langkah ${S.frame + 1} / ${F.length}`;
-}
-
-// grafik sebaran NSGA-II (sumbu tetap selama satu algoritma)
-let scBounds = null;
-function computeScatterBounds() {
-  const pts = DATA.algos[S.algo].frames.flatMap((f) => (f.sc || []).filter((p) => !p[3]));
-  if (!pts.length) { scBounds = null; return; }
-  const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
-  const pad = (lo, hi) => [lo - (hi - lo) * 0.06, hi + (hi - lo) * 0.06];
-  scBounds = { x: pad(Math.min(...xs), Math.max(...xs)), y: pad(Math.min(...ys), Math.max(...ys)) };
-}
-function drawScatter(sc) {
-  const box = $("scatterBox");
-  if (!sc || !scBounds || S.stage !== 1) { box.style.display = "none"; return; }
-  box.style.display = "block";
-  const cv = $("scatter"), g = cv.getContext("2d"), W = cv.width, H = cv.height, L0 = 44, B0 = 30;
-  g.clearRect(0, 0, W, H);
-  g.strokeStyle = "#c9c9c4"; g.lineWidth = 1;
-  g.beginPath(); g.moveTo(L0, 6); g.lineTo(L0, H - B0); g.lineTo(W - 6, H - B0); g.stroke();
-  g.fillStyle = "#6b6b66"; g.font = "11px system-ui, sans-serif";
-  g.fillText("biaya bensin →", W - 92, H - 8);
-  g.save(); g.translate(12, H - B0); g.rotate(-Math.PI / 2); g.fillText("rata-rata tiba →", 0, 0); g.restore();
-  g.fillText("Rp" + Math.round(scBounds.x[0] / 1000) + "rb", L0, H - B0 + 13);
-  const X = (v) => L0 + (Math.min(Math.max(v, scBounds.x[0]), scBounds.x[1]) - scBounds.x[0]) / (scBounds.x[1] - scBounds.x[0]) * (W - L0 - 8);
-  const Y = (v) => (H - B0) - (Math.min(Math.max(v, scBounds.y[0]), scBounds.y[1]) - scBounds.y[0]) / (scBounds.y[1] - scBounds.y[0]) * (H - B0 - 8);
-  const col = ["#2a78d6", "#93b9e8", "#c8c8c3", "#c8c8c3"];
-  for (const rank of [3, 2, 1, 0]) for (const [x, y, r, bad] of sc) {
-    if (Math.min(r, 3) !== rank) continue;
-    g.beginPath(); g.arc(X(x), Y(y), rank === 0 ? 3.6 : 3, 0, 2 * Math.PI);
-    if (bad) { g.strokeStyle = "#a3a39d"; g.stroke(); } else { g.fillStyle = col[rank]; g.fill(); }
-  }
 }
 
 // ------------------------------------------------------------------ tahap 2: pengiriman
@@ -474,15 +434,13 @@ function enter() {
   setPlaying(false);
   const A = DATA.algos[S.algo];
   document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("on", +b.dataset.stage === S.stage));
-  pherLayer.clearLayers(); routeLayer.clearLayers(); roadLayer.clearLayers(); vanLayer.clearLayers();
+  routeLayer.clearLayers(); roadLayer.clearLayers(); vanLayer.clearLayers();
   $("logSec").style.display = S.stage === 2 ? "" : "none";
   if (S.stage === 1) {
     S.frame = 0;
     $("codeTitle").textContent = `Pseudocode · ${S.algo}`;
     setCode(A.code);
-    computeScatterBounds();
     $("note").textContent = "Rute digambar mengikuti jalan asli (OSRM). Garis putus-putus = rute melebihi kapasitas."
-      + (S.algo === "ACO" ? " Garis cokelat = jalur dengan feromon kuat." : "")
       + ` Run: seed ${DATA.seed}, ${DATA.budget.toLocaleString("id-ID")} evaluasi.`;
   } else {
     S.t = 0;

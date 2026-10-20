@@ -1,9 +1,8 @@
 """Animasi gaya VisuAlgo: (1) jalannya algoritma mencari rute, (2) Granmax mengantar MBG.
 
 Setiap algoritma dijalankan sekali (seed 1, bobot utama w) dengan callback `trace`
-untuk merekam langkah-langkahnya. Untuk Greedy/HC/SA/GA/ACO hasilnya sama persis dengan
-run seed 1 di eksperimen (trace tidak memakai rng). NSGA-II memakai anggaran yang sama
-dengan algoritma lain (bukan 5x seperti di eksperimen) supaya animasinya tidak terlalu panjang.
+untuk merekam langkah-langkahnya. Hasil Greedy/HC/SA/GA sama persis dengan run seed 1
+di eksperimen (trace tidak memakai rng).
 
 Contoh:
   python make_animation.py                          # semua instance
@@ -32,7 +31,6 @@ from mbgvrp.viz import DEPOT_COLORS  # noqa: E402
 
 TEMPLATE = ROOT / "src" / "mbgvrp" / "animation_template.html"
 N_COARSE = 160          # perkiraan jumlah frame "cepat" per algoritma
-TOP_PHEROMONE = 70      # jumlah jalur feromon terkuat yang digambar (ACO)
 
 
 def pack(routes):
@@ -164,63 +162,6 @@ def record_sa(inst, w, penalty, cfg, budget, seed):
     return rec.frames, res.routes
 
 
-# -------------------------------------------------------------------------------- HC
-HC_CODE = [
-    "x ← solusi acak (urutan sekolah + pemisah antar-Granmax)",
-    "while evaluasi < N:",
-    "  y ← tetangga(x)   (swap / insert / inversion acak)",
-    "  if f(y) ≤ f(x):",
-    "    x ← y          ▸ diterima (tidak pernah menerima yang lebih buruk)",
-    "  else: buang y    ▸ ditolak",
-    "  if 2000 evaluasi tanpa perbaikan:   (terjebak optimum lokal)",
-    "    x ← solusi acak baru   ▸ random restart",
-    "return x terbaik",
-]
-
-
-def record_hc(inst, w, penalty, cfg, budget, seed):
-    rec = Recorder(inst, w, penalty)
-    events = []
-    rng = np.random.default_rng(seed * 1000 + int(w * 100))
-    res = A.run_hc(inst, w, penalty, budget=budget, rng=rng, trace=lambda ev, **d: events.append((ev, d)),
-                   **cfg["algorithms"]["hc"])
-    init = events[0][1]
-    steps = [(ev, d) for ev, d in events[1:]]
-    N = budget
-    detail = set(range(2, 6)) | set(range(N // 3, N // 3 + 2))
-    every = max(1, N // N_COARSE)
-    x0 = enc.decode(inst, init["x"])
-    rec.add(0, x0, "Solusi awal acak: biasanya masih melanggar kapasitas (penalti besar).", f=init["fx"])
-    for ev, d in steps:
-        it = d["it"]
-        if ev == "hc_restart":
-            x = enc.decode(inst, d["x"])
-            rec.add(7, x, f"Terjebak di optimum lokal (2000 evaluasi tanpa perbaikan) → restart ke-"
-                          f"{d['restarts']} dari solusi acak. Solusi terbaik tetap disimpan.",
-                    {"Evaluasi": f"{it:,}/{N:,}", "f terbaik": round(d["best_f"], 4)}, f=d["fx"])
-            continue
-        if it not in detail and it % every:
-            continue
-        x = enc.decode(inst, d["x"])
-        y = enc.decode(inst, d["y"])
-        delta = d["fy"] - d["fx"]
-        info = {"Evaluasi": f"{it:,}/{N:,}", "f(x)": round(d["fx"], 4), "f terbaik": round(d["best_f"], 4),
-                "Tanpa perbaikan": f"{d['stall']:,}"}
-        new_x, new_f = (y, d["fy"]) if d["accepted"] else (x, d["fx"])
-        if it in detail:
-            rec.add(2, y, "Kandidat tetangga y dari x (satu operasi acak).", info, f=d["fy"])
-            rec.add(3, y, f"Δ = f(y) − f(x) = {delta:+.4f}", dict(info, Δ=f"{delta:+.4f}"), f=d["fy"])
-            rec.add(4 if d["accepted"] else 5, new_x,
-                    "y tidak lebih buruk, diterima." if d["accepted"] else
-                    "y lebih buruk → langsung ditolak (beda utama dengan SA).", info, f=new_f)
-        else:
-            rec.add(4 if d["accepted"] else 5, new_x,
-                    f"Evaluasi {it:,}: {'diterima' if d['accepted'] else 'ditolak'} "
-                    f"(HC hanya bergerak ke solusi yang tidak lebih buruk).", info, f=new_f)
-    rec.add(8, res.routes, "Selesai: kembalikan solusi terbaik dari semua restart.", f=res.fitness)
-    return rec.frames, res.routes
-
-
 # -------------------------------------------------------------------------------- GA
 GA_CODE = [
     "P ← 100 urutan sekolah acak",
@@ -282,143 +223,54 @@ def record_ga(inst, w, penalty, cfg, budget, seed):
     return rec.frames, res.routes
 
 
-# ------------------------------------------------------------------------------- ACO
-ACO_CODE = [
-    "τ ← τmax pada semua jalur",
-    "for iter = 1 … I:",
-    "  for semut k = 1 … 20:",
-    "    bangun rute: pilih (rute, sekolah) ∝ τ^α · (1/Δ)^β",
-    "  catat semut terbaik iterasi ini",
-    "  τ ← (1 − ρ)·τ          (penguapan, ρ = 0.1)",
-    "  deposit 1/f di jalur semut terbaik (tiap 5 iterasi: terbaik global)",
-    "  batasi τ ke [τmin, τmax]   (MAX-MIN Ant System)",
-    "return rute terbaik",
+# -------------------------------------------------------------------------------- HC
+HC_CODE = [
+    "x ← solusi acak (urutan sekolah + pemisah antar-Granmax)",
+    "while anggaran evaluasi belum habis:",
+    "  N ← 50 tetangga acak dari x   (swap / insert / inversion)",
+    "  y ← tetangga terbaik di N",
+    "  if f(y) < f(x):",
+    "    x ← y          ▸ naik satu langkah",
+    "  else:            ▸ local optimum",
+    "    x ← solusi acak baru   (random restart)",
+    "return x terbaik dari semua restart",
 ]
 
 
-def pheromone_edges(inst, tau, tau_min, tau_max):
-    n_nodes = inst.m + inst.n
-    t = tau.copy()
-    np.fill_diagonal(t, 0)
-    flat = np.argsort(t, axis=None)[::-1][:TOP_PHEROMONE]
-    out = []
-    for f in flat:
-        a, b = divmod(int(f), n_nodes)
-        v = (t[a, b] - tau_min) / (tau_max - tau_min) if tau_max > tau_min else 0
-        if v > 0.02:
-            out.append([a, b, round(float(v), 3)])
-    return out
-
-
-def record_aco(inst, w, penalty, cfg, budget, seed):
+def record_hc(inst, w, penalty, cfg, budget, seed):
     rec = Recorder(inst, w, penalty)
-    ants, iters = [], []
-    params = cfg["algorithms"]["aco"]
-    n_ants = params["n_ants"]
-    total_iters = budget // n_ants
-    every = max(1, total_iters // N_COARSE)
-
-    def tr(ev, **d):
-        if ev == "aco_ant":
-            if d["it"] < 2 and d["ant"] < 3:
-                ants.append(d)
-        elif d["it"] < 2 or d["it"] % every == 0 or d["it"] == total_iters - 1:
-            d = dict(d, ph=pheromone_edges(inst, d["tau"], d["tau_min"], d["tau_max"]))
-            del d["tau"]
-            iters.append(d)
-
+    events = []
     rng = np.random.default_rng(seed * 1000 + int(w * 100))
-    res = A.run_aco(inst, w, penalty, budget=budget, rng=rng, trace=tr, **params)
-    I = iters[-1]["it"] + 1
-    rec.add(0, [], "Semua jalur diberi feromon maksimum yang sama.", ph=[])
-    for d in iters:
-        it = d["it"]
-        info = {"Iterasi": f"{it + 1}/{I}", "f iterasi": round(d["it_best_f"], 4),
-                "f terbaik": round(d["best_f"], 4), "Evaluasi": f"{d['evals']:,}"}
-        if it < 2:
-            for a in (x for x in ants if x["it"] == it):
-                rec.add(3, a["routes"], f"Semut {a['ant'] + 1} membangun rute secara probabilistik.",
-                        info, f=a["f"])
-            rec.add(4, d["it_best_routes"], "Semut terbaik pada iterasi ini.", info, f=d["it_best_f"])
-            rec.add(5, d["it_best_routes"], "Feromon menguap 10% di semua jalur.", info,
-                    f=d["it_best_f"], ph=d["ph"])
-            rec.add(6, d["best_routes"] if d["deposit_best"] else d["it_best_routes"],
-                    "Feromon ditambah di jalur semut terbaik (garis cokelat = feromon kuat).",
-                    info, f=d["best_f"] if d["deposit_best"] else d["it_best_f"], ph=d["ph"])
-        rec.add(7, d["best_routes"], f"Iterasi {it + 1}: feromon terkonsentrasi di jalur yang bagus.",
-                info, f=d["best_f"], ph=d["ph"])
-    rec.add(8, res.routes, "Selesai: kembalikan rute terbaik.", f=res.fitness, ph=iters[-1]["ph"])
-    return rec.frames, res.routes
-
-
-# ---------------------------------------------------------------------------- NSGA-II
-NSGA_CODE = [
-    "P ← 100 individu acak (urutan sekolah + gen bobot decoder)",
-    "evaluasi 2 objektif: biaya bensin & rata-rata waktu tiba",
-    "for gen = 1 … G:",
-    "  Q ← 100 anak (tournament rank+crowding, crossover, mutasi)",
-    "  R ← P ∪ Q",
-    "  urutkan R ke front non-dominated F1, F2, …",
-    "  P ← F1, F2, … sampai 100 (front terakhir dipilih via crowding distance)",
-    "return front F1 (Pareto)",
-]
-
-
-def knee_index(points):
-    p = np.array(points)
-    lo, hi = p.min(axis=0), p.max(axis=0)
-    sc = (p - lo) / np.where(hi > lo, hi - lo, 1)
-    return int(np.argmin(np.linalg.norm(sc, axis=1)))
-
-
-def record_nsga2(inst, w, penalty, cfg, budget, seed):
-    rec = Recorder(inst, w, penalty)
-    gens = []
-    G_est = budget // cfg["algorithms"]["nsga2"]["pop_size"] - 1
-    every = max(1, G_est // N_COARSE)
-
-    def tr(ev, **d):
-        if d["gen"] > 1 and d["gen"] % every and d["gen"] < G_est:
-            return
-        rank = {}
-        for r, fr in enumerate(d["fronts"]):
-            for p in fr:
-                rank[p] = r
-        f1 = [i for i in d["fronts"][0] if d["viol"][i] == 0]
-        knee = None
-        if f1:
-            k = f1[knee_index([d["objs"][i] for i in f1])]
-            knee = decode_order(inst, d["pop"][k][0].tolist(), d["pop"][k][1])
-        sc = [[round(o[0] * inst.ref_cost), round(o[1] * inst.ref_time, 2), min(rank[i], 3),
-               int(d["viol"][i] > 0)] for i, o in enumerate(d["objs"])]
-        gens.append({"gen": d["gen"], "knee": knee, "sc": sc, "evals": d["evals"],
-                     "n_f1": len(f1)})
-
-    rng = np.random.default_rng(seed * 1000 + 999)
-    res = A.run_nsga2(inst, budget, rng, trace=tr, **cfg["algorithms"]["nsga2"])
-    G = gens[-1]["gen"]
-
-    for g in gens:
-        info = {"Generasi": f"{g['gen']}/{G}", "Solusi di F1": g["n_f1"], "Evaluasi": f"{g['evals']:,}"}
-        routes = g["knee"] or []
-        msg_k = "Peta: solusi kompromi (knee) di F1." if g["knee"] else "Belum ada solusi feasible di F1."
-        if g["gen"] == 0:
-            rec.add(0, routes, "Populasi awal acak. Grafik: biaya vs waktu tiap individu.", info, sc=g["sc"])
-            rec.add(1, routes, msg_k, info, sc=g["sc"])
-        elif g["gen"] == 1:
-            rec.add(3, routes, "Buat 100 anak dari induk hasil tournament.", info, sc=g["sc"])
-            rec.add(4, routes, "Gabungkan induk + anak = 200 individu.", info, sc=g["sc"])
-            rec.add(5, routes, "Urutkan per front: F1 (biru) tidak didominasi solusi lain.", info, sc=g["sc"])
-            rec.add(6, routes, "Ambil 100 terbaik untuk generasi berikutnya. " + msg_k, info, sc=g["sc"])
+    res = A.run_hc(inst, w, penalty, budget=budget, rng=rng, trace=lambda ev, **d: events.append((ev, d)),
+                   **cfg["algorithms"]["hc"])
+    init = events[0][1]
+    steps = [d for ev, d in events[1:]]
+    N = len(steps)
+    restart_at = [k for k, d in enumerate(steps) if not d["improved"]]
+    detail = set(range(5)) | set(restart_at[:2]) | set(range(N - 2, N))
+    every = max(1, N // N_COARSE)
+    x0 = enc.decode(inst, init["x"])
+    rec.add(0, x0, "Solusi awal acak: biasanya masih melanggar kapasitas (penalti besar).", f=init["fx"])
+    for k, d in enumerate(steps):
+        if k not in detail and k % every and d["improved"]:
+            continue
+        x = enc.decode(inst, d["x"])
+        y = enc.decode(inst, d["y"])
+        info = {"Langkah": f"{k + 1:,}/{N:,}", "f(x)": round(d["fx"], 4),
+                "f terbaik": round(d["best_f"], 4), "Restart": d["restarts"],
+                "Evaluasi": f"{d['evals']:,}"}
+        if k in detail:
+            rec.add(2, x, "Ambil 50 tetangga acak dari x.", info, f=d["fx"])
+            rec.add(3, y, "Tetangga terbaik y dari 50 kandidat.", info, f=d["fy"])
+            rec.add(4, y, f"f(y) = {d['fy']:.4f} {'<' if d['improved'] else '≥'} f(x) = {d['fx']:.4f}",
+                    info, f=d["fy"])
+        if d["improved"]:
+            rec.add(5, y, "y lebih baik, jadi solusi sekarang.", info, f=d["fy"])
         else:
-            rec.add(6, routes, f"Generasi {g['gen']}: front F1 makin maju ke kiri-bawah. " + msg_k,
-                    info, sc=g["sc"])
-    pts = [(ev.cost / inst.ref_cost, ev.mean_arrival / inst.ref_time) for _, ev in res.front]
-    routes, ev = res.front[knee_index(pts)]
-    final_sc = [[round(e.cost), round(e.mean_arrival, 2), 0, 0] for _, e in res.front]
-    rec.add(7, routes, f"Selesai: {len(res.front)} solusi Pareto. Peta: solusi knee "
-            f"(Rp{ev.cost:,.0f}, {ev.mean_arrival:.1f} mnt).", sc=final_sc)
-    return rec.frames, routes
+            rec.add(7, x, f"Local optimum (restart ke-{d['restarts'] + 1}): mulai lagi dari solusi acak.",
+                    info, f=d["fx"])
+    rec.add(8, res.routes, "Selesai: kembalikan solusi terbaik dari semua restart.", f=res.fitness)
+    return rec.frames, res.routes
 
 
 # ------------------------------------------------------------------------ pengiriman
@@ -544,8 +396,6 @@ def build(name, cfg, budget, seed):
         ("HC", HC_CODE, record_hc, (budget, seed)),
         ("SA", SA_CODE, record_sa, (budget, seed)),
         ("GA", GA_CODE, record_ga, (budget, seed)),
-        ("ACO", ACO_CODE, record_aco, (budget, seed)),
-        ("NSGA-II", NSGA_CODE, record_nsga2, (budget, seed)),
     ]:
         t0 = time.time()
         frames, routes = fn(inst, w, pen, cfg, *args)
@@ -603,7 +453,6 @@ def attach_legs(data, out):
             for r in fr["r"]:
                 nodes = [r[0]] + [data["m"] + s for s in r[1:]] + [r[0]]
                 pairs.update(zip(nodes[:-1], nodes[1:]))
-            pairs.update((a_, b_) for a_, b_, _ in fr.get("ph", []))
     legs = LegCache(SimpleNamespace(nodes=data["nodes"]), out / ".osrm_legs_cache.json")
     print(f"  {len(pairs)} ruas jalan dipakai di animasi")
     legs.ensure(pairs)

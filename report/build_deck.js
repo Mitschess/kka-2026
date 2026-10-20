@@ -34,6 +34,7 @@ const MUTED = "5E6B65";
 const PAL8 = ["2A78D6", "EB6834", "1BAF7A", "EDA100", "E87BA4", "008300", "6250D6", "E34948"];
 const SEARCH = ["BFS", "IDS", "DFS-B&B", "UCS", "A* (h1)", "A*", "GBFS"];
 const LOCAL = ["HC", "HC-Sideways", "Stochastic HC", "Random-Walk HC", "RR-HC", "EHC", "SA", "GA"];
+const INTEG = ["HC", "SA", "GA"]; // pembanding terintegrasi (run_experiments.py)
 const LS_COLOR = Object.fromEntries(LOCAL.map((a, i) => [a, PAL8[i]]));
 const SEARCH_COLOR = Object.fromEntries(SEARCH.map((a, i) => [a, PAL8[i]]));
 
@@ -45,13 +46,12 @@ function readCsv(p) {
 }
 const names = Object.keys(CONFIG.instances);
 const SMALL = names[0], BIG = names[names.length - 1];
-const ls = {}, lsBest = {}, lsTests = {}, integ = {}, front = {};
+const ls = {}, lsBest = {}, lsTests = {}, integ = {};
 for (const n of names) {
   ls[n] = Object.fromEntries(readCsv(path.join(RES, n, "ls_summary.csv")).map((r) => [r.algorithm, r]));
   lsBest[n] = JSON.parse(fs.readFileSync(path.join(RES, n, "ls_best.json"), "utf8"));
   lsTests[n] = Object.fromEntries(readCsv(path.join(RES, n, "ls_stat_tests.csv")).map((r) => [r.pair, r]));
   integ[n] = Object.fromEntries(readCsv(path.join(RES, n, "summary_main_w.csv")).map((r) => [r.algorithm, r]));
-  front[n] = readCsv(path.join(RES, n, "nsga2_front.csv")).map((r) => ({ c: +r.cost_rp, t: +r.mean_arrival_min }));
 }
 const real = readCsv(path.join(RES, "search_real.csv"));
 const scal = readCsv(path.join(RES, "search_summary.csv"));
@@ -180,7 +180,7 @@ async function main() {
   const bkB = lsBest[BIG].best_known_fitness;
   const sol = lsBest[BIG][top], g = lsBest[BIG].Greedy;
   const savePct = ((g.cost_rp - sol.cost_rp) / g.cost_rp) * 100;
-  const integBest = ["HC", "SA", "GA", "ACO"].sort((a, b) => +integ[BIG][a].fitness_mean - +integ[BIG][b].fitness_mean)[0];
+  const integBest = [...INTEG].sort((a, b) => +integ[BIG][a].fitness_mean - +integ[BIG][b].fitness_mean)[0];
   const ib = integ[BIG][integBest];
   const nBetter = LOCAL.filter((a) => +LB[a].fitness_mean < +ib.fitness_mean).length;
   const ratioUA = RA.UCS.exp / RA["A*"].exp;
@@ -448,7 +448,7 @@ async function main() {
   {
     const s = content("Hasil", "Dua tingkat > metaheuristik terintegrasi");
     const items = [["Greedy", +integ[BIG].Greedy.fitness_mean, "52514E"],
-      ...["HC", "SA", "GA", "ACO"].map((a) => [`${a} terintegrasi`, +integ[BIG][a].fitness_mean, "EB6834"]),
+      ...INTEG.map((a) => [`${a} terintegrasi`, +integ[BIG][a].fitness_mean, "EB6834"]),
       ...LOCAL.map((a) => [`${a} (2 tingkat)`, +LB[a].fitness_mean, "2A78D6"])];
     items.sort((a, b) => a[1] - b[1]);
     s.addChart(pres.charts.BAR, [{ name: "Selisih", labels: items.map((x) => x[0]), values: items.map((x) => +(((x[1] - bkB) / bkB) * 100).toFixed(2)) }], {
@@ -457,17 +457,17 @@ async function main() {
       title: `Selisih rata-rata dari terbaik diketahui, ${BIG}`, valAxisHidden: true, valAxisMinVal: 0, catAxisOrientation: "maxMin",
       ...chartBase, catAxisLabelFontSize: 11,
     });
-    statCard(s, 8.5, 1.45, 4.23, 1.55, `${nBetter} dari 8`, `algoritma dua tingkat lebih baik dari ${integBest} terintegrasi (terbaik di eksperimen awal)`);
+    statCard(s, 8.5, 1.45, 4.23, 1.55, nBetter === 8 ? "8 dari 8" : `${nBetter} dari 8`, `algoritma dua tingkat lebih baik dari ${integBest} terintegrasi (pembanding terbaik)`);
     statCard(s, 8.5, 3.15, 4.23, 1.55, `−${fmt(savePct, 1)}%`, `biaya bensin vs Greedy (${rp(g.cost_rp)} → ${rp(sol.cost_rp)}/hari)`);
-    txt(s, "Algoritma yang sama (HC, SA, GA) jauh lebih kuat di ruang pembagian + rute optimal daripada di ruang rute penuh: ruangnya lebih kecil dan setiap titik langsung dinilai dengan rute terbaiknya.",
+    txt(s, `Algoritma yang sama jauh lebih kuat di ruang pembagian + rute optimal: HC terintegrasi ${fmt(+integ[BIG].HC.fitness_mean, 4)} (kalah dari Greedy), HC dua tingkat ${fmt(+LB.HC.fitness_mean, 4)}.`,
       { x: 8.5, y: 4.9, w: 4.23, h: 1.9, fontSize: 14 });
-    s.addNotes(`Komparasi menyeluruh (±1 menit). Oranye: metaheuristik terintegrasi dari eksperimen awal yang mencari langsung di ruang rute penuh. Biru: pendekatan dua tingkat. ${integBest} terintegrasi rata-rata ${fmt(((+ib.fitness_mean - bkB) / bkB) * 100, 2)}% di atas terbaik diketahui. Pesan utamanya: representasi yang sesuai struktur masalah lebih menentukan daripada pilihan metaheuristik.`);
+    s.addNotes(`Komparasi menyeluruh (±1 menit). Oranye: metaheuristik terintegrasi (HC, SA, GA) yang mencari langsung di ruang rute penuh. Biru: pendekatan dua tingkat. ${integBest} terintegrasi rata-rata ${fmt(((+ib.fitness_mean - bkB) / bkB) * 100, 2)}% di atas terbaik diketahui. Pesan utamanya: representasi yang sesuai struktur masalah lebih menentukan daripada pilihan metaheuristik.`);
   }
 
   // ============================================================ 12. trade-off
   if (sweep.length) {
     const s = content("Hasil", "Trade-off biaya bensin vs waktu tiba");
-    image(s, path.join(RES, BIG, "fig_ls_pareto.png"), M, 1.35, 7.6, 5.4);
+    image(s, path.join(RES, BIG, "fig_ls_tradeoff.png"), M, 1.35, 7.6, 5.4);
     const algo = sweep[0].algorithm;
     const best = {};
     for (const r of sweep) if (!best[+r.w] || +r.fitness < +best[+r.w].fitness) best[+r.w] = r;
@@ -480,7 +480,7 @@ async function main() {
       txt(s, `${rp(r.cost_rp)} · ${fmt(r.mean_arrival_min, 1)} mnt`, { x: 9.9, y: y + 0.1, w: 2.75, h: 0.62, fontSize: 15, valign: "middle", color: C.text1 });
     });
     txt(s, "w = 1: murni bensin · w = 0: murni waktu", { x: 8.5, y: 6.25, w: 4.23, h: 0.4, fontSize: 12, color: MUTED });
-    s.addNotes(`Trade-off (±1 menit). ${algo} dengan rute optimal dijalankan untuk lima bobot dan dibandingkan dengan Pareto front NSGA-II dari eksperimen awal. Dari solusi termurah ke tercepat, rata-rata waktu tiba turun ${fmt(+best[1].mean_arrival_min - +best[0].mean_arrival_min, 1)} menit tetapi biaya naik ${rp(+best[0].cost_rp - +best[1].cost_rp)} per hari. Pengelola SPPG bisa memilih bobot sesuai prioritasnya.`);
+    s.addNotes(`Trade-off (±1 menit). ${algo} dengan rute optimal dijalankan untuk lima bobot w. Dari solusi termurah ke tercepat, rata-rata waktu tiba turun ${fmt(+best[1].mean_arrival_min - +best[0].mean_arrival_min, 1)} menit tetapi biaya naik ${rp(+best[0].cost_rp - +best[1].cost_rp)} per hari. Pengelola SPPG bisa memilih bobot sesuai prioritasnya.`);
   }
 
   // ============================================================ 13. rute terbaik

@@ -14,10 +14,9 @@ Hasil per instance di results/<instance>/ :
   ls_best.json           penugasan & rute terbaik tiap algoritma
   ls_best_routes.txt     rute terbaik dalam bahasa manusia
   fig_ls_boxplot.png, fig_ls_konvergensi.png, fig_rute_terbaik.png, peta_rute_terbaik.html
-  ls_sweep.csv, fig_ls_pareto.png    (mode --sweep)
+  ls_sweep.csv, fig_ls_tradeoff.png  (mode --sweep)
 """
 import argparse
-import csv
 import json
 import os
 import pickle
@@ -220,23 +219,15 @@ def report(name, config, results, budget, out):
 
 def report_sweep(name, config, algo, results, out):
     from mbgvrp import viz
-    from mbgvrp.metrics import nondominated
 
-    inst = _instance(name, config)
     rows = sorted((r for r, *_ in results.values()), key=lambda r: (r["w"], r["seed"]))
     write_csv(out / "ls_sweep.csv", rows)
     pts = []
     for w in config["experiment"]["weights"]:
         r = min((r for r in rows if r["w"] == w), key=lambda r: r["fitness"])
         pts.append((r["cost_rp"], r["mean_arrival_min"], w))
-    front_file = out / "nsga2_front.csv"
-    front = []
-    if front_file.exists():
-        with open(front_file, encoding="utf-8") as f:
-            front = [(float(r["cost_rp"]), float(r["mean_arrival_min"])) for r in csv.DictReader(f)]
-    viz.plot_pareto(nondominated(front) if front else [], {algo: pts},
-                    out / "fig_ls_pareto.png",
-                    f"Trade-off biaya vs waktu: {algo} + rute optimal vs NSGA-II — {name}")
+    viz.plot_tradeoff({algo: pts}, out / "fig_ls_tradeoff.png",
+                      f"Trade-off biaya vs waktu: {algo} + rute optimal — {name}", annotate=True)
     print(f"\n=== {name}: sweep {algo} ===")
     for c, t, w in pts:
         print(f"  w = {w:4}: Rp{c:,.0f}, rata-rata tiba {t:.2f} mnt")
