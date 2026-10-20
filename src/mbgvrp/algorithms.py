@@ -2,6 +2,7 @@
 
 Single-objective (weighted sum, bobot w):
   - Greedy            : baseline konstruktif (cheapest append)
+  - Hill Climbing       : stochastic HC + random restart (representasi & tetangga = SA)
   - Simulated Annealing : representasi langsung (permutasi + pemisah kendaraan)
   - Genetic Algorithm   : representasi urutan sekolah + decoder greedy
   - Ant Colony Optimization (MAX-MIN Ant System) : konstruktif probabilistik
@@ -73,6 +74,46 @@ def run_greedy(inst, w, penalty, trace=None, **_):
     obj = _Objective(inst, w, penalty)
     obj.routes(greedy(inst, w, trace))
     return obj.result("Greedy", start)
+
+
+# ===================================================================== Hill Climbing
+def run_hc(inst, w, penalty, budget, rng, restart_after=2000, trace=None, **_):
+    """Stochastic (first-improvement) Hill Climbing dengan random restart.
+
+    Representasi & operator tetangga SAMA dengan SA; bedanya hanya aturan
+    penerimaan: HC tidak pernah menerima solusi yang lebih buruk (Δ > 0).
+    Gerakan menyamping (Δ = 0) boleh agar bisa menyeberangi plateau. Jika
+    `restart_after` evaluasi berturut-turut tidak ada perbaikan, HC terjebak di
+    optimum lokal -> mulai lagi dari solusi acak baru (best tetap disimpan)."""
+    start = time.perf_counter()
+    obj = _Objective(inst, w, penalty)
+    x = enc.random_solution(inst, rng)
+    fx = obj.perm(x)
+    stall, restarts = 0, 0
+    if trace:
+        trace("hc_init", x=x, fx=fx)
+
+    while obj.evals < budget:
+        y = enc.neighbor(x, rng)
+        fy = obj.perm(y)
+        accepted = fy <= fx
+        stall = 0 if fy < fx else stall + 1
+        if trace:
+            trace("hc_step", it=obj.evals, x=x, y=y, fx=fx, fy=fy, accepted=accepted,
+                  best_f=obj.best_f, best_routes=obj.best_routes, stall=stall)
+        if accepted:
+            x, fx = y, fy
+        if stall >= restart_after and obj.evals < budget:
+            restarts += 1
+            x = enc.random_solution(inst, rng)
+            fx = obj.perm(x)
+            stall = 0
+            if trace:
+                trace("hc_restart", it=obj.evals, x=x, fx=fx, restarts=restarts,
+                      best_f=obj.best_f, best_routes=obj.best_routes)
+    res = obj.result("HC", start)
+    res.restarts = restarts
+    return res
 
 
 # =============================================================== Simulated Annealing

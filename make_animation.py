@@ -1,7 +1,7 @@
 """Animasi gaya VisuAlgo: (1) jalannya algoritma mencari rute, (2) Granmax mengantar MBG.
 
 Setiap algoritma dijalankan sekali (seed 1, bobot utama w) dengan callback `trace`
-untuk merekam langkah-langkahnya. Untuk Greedy/SA/GA/ACO hasilnya sama persis dengan
+untuk merekam langkah-langkahnya. Untuk Greedy/HC/SA/GA/ACO hasilnya sama persis dengan
 run seed 1 di eksperimen (trace tidak memakai rng). NSGA-II memakai anggaran yang sama
 dengan algoritma lain (bukan 5x seperti di eksperimen) supaya animasinya tidak terlalu panjang.
 
@@ -161,6 +161,63 @@ def record_sa(inst, w, penalty, cfg, budget, seed):
                     f"Iterasi {it:,}: {'diterima' if d['accepted'] else 'ditolak'} "
                     f"(T makin kecil → makin jarang menerima solusi buruk).", info, f=new_f)
     rec.add(9, res.routes, "Selesai: kembalikan solusi terbaik yang pernah ditemukan.", f=res.fitness)
+    return rec.frames, res.routes
+
+
+# -------------------------------------------------------------------------------- HC
+HC_CODE = [
+    "x ← solusi acak (urutan sekolah + pemisah antar-Granmax)",
+    "while evaluasi < N:",
+    "  y ← tetangga(x)   (swap / insert / inversion acak)",
+    "  if f(y) ≤ f(x):",
+    "    x ← y          ▸ diterima (tidak pernah menerima yang lebih buruk)",
+    "  else: buang y    ▸ ditolak",
+    "  if 2000 evaluasi tanpa perbaikan:   (terjebak optimum lokal)",
+    "    x ← solusi acak baru   ▸ random restart",
+    "return x terbaik",
+]
+
+
+def record_hc(inst, w, penalty, cfg, budget, seed):
+    rec = Recorder(inst, w, penalty)
+    events = []
+    rng = np.random.default_rng(seed * 1000 + int(w * 100))
+    res = A.run_hc(inst, w, penalty, budget=budget, rng=rng, trace=lambda ev, **d: events.append((ev, d)),
+                   **cfg["algorithms"]["hc"])
+    init = events[0][1]
+    steps = [(ev, d) for ev, d in events[1:]]
+    N = budget
+    detail = set(range(2, 6)) | set(range(N // 3, N // 3 + 2))
+    every = max(1, N // N_COARSE)
+    x0 = enc.decode(inst, init["x"])
+    rec.add(0, x0, "Solusi awal acak: biasanya masih melanggar kapasitas (penalti besar).", f=init["fx"])
+    for ev, d in steps:
+        it = d["it"]
+        if ev == "hc_restart":
+            x = enc.decode(inst, d["x"])
+            rec.add(7, x, f"Terjebak di optimum lokal (2000 evaluasi tanpa perbaikan) → restart ke-"
+                          f"{d['restarts']} dari solusi acak. Solusi terbaik tetap disimpan.",
+                    {"Evaluasi": f"{it:,}/{N:,}", "f terbaik": round(d["best_f"], 4)}, f=d["fx"])
+            continue
+        if it not in detail and it % every:
+            continue
+        x = enc.decode(inst, d["x"])
+        y = enc.decode(inst, d["y"])
+        delta = d["fy"] - d["fx"]
+        info = {"Evaluasi": f"{it:,}/{N:,}", "f(x)": round(d["fx"], 4), "f terbaik": round(d["best_f"], 4),
+                "Tanpa perbaikan": f"{d['stall']:,}"}
+        new_x, new_f = (y, d["fy"]) if d["accepted"] else (x, d["fx"])
+        if it in detail:
+            rec.add(2, y, "Kandidat tetangga y dari x (satu operasi acak).", info, f=d["fy"])
+            rec.add(3, y, f"Δ = f(y) − f(x) = {delta:+.4f}", dict(info, Δ=f"{delta:+.4f}"), f=d["fy"])
+            rec.add(4 if d["accepted"] else 5, new_x,
+                    "y tidak lebih buruk, diterima." if d["accepted"] else
+                    "y lebih buruk → langsung ditolak (beda utama dengan SA).", info, f=new_f)
+        else:
+            rec.add(4 if d["accepted"] else 5, new_x,
+                    f"Evaluasi {it:,}: {'diterima' if d['accepted'] else 'ditolak'} "
+                    f"(HC hanya bergerak ke solusi yang tidak lebih buruk).", info, f=new_f)
+    rec.add(8, res.routes, "Selesai: kembalikan solusi terbaik dari semua restart.", f=res.fitness)
     return rec.frames, res.routes
 
 
@@ -484,6 +541,7 @@ def build(name, cfg, budget, seed):
     algos = {}
     for label, code, fn, args in [
         ("Greedy", GREEDY_CODE, record_greedy, ()),
+        ("HC", HC_CODE, record_hc, (budget, seed)),
         ("SA", SA_CODE, record_sa, (budget, seed)),
         ("GA", GA_CODE, record_ga, (budget, seed)),
         ("ACO", ACO_CODE, record_aco, (budget, seed)),

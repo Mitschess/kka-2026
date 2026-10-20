@@ -1,0 +1,77 @@
+@page {
+  size: A4;
+  margin: 2.5cm 2.3cm 2.4cm 3cm;
+  @bottom-center { content: counter(page); font: 10.5pt "Times New Roman", serif; color: #444; }
+}
+@page :first { @bottom-center { content: none; } }
+
+:root { --ink: #1b1b1b; --muted: #555; --line: #c9c9c4; --accent: #1f5c46; --tint: #f1f5f3; }
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body { margin: 0; color: var(--ink); background: #fff;
+       font: 12pt/1.5 "Times New Roman", Times, serif; text-align: justify; hyphens: auto; }
+p { margin: 0 0 0.6em; orphans: 3; widows: 3; }
+ol, ul { margin: 0.2em 0 0.7em; padding-left: 1.6em; }
+li { margin-bottom: 0.25em; }
+a { color: var(--accent); text-decoration: none; }
+code { font: 10pt Consolas, "Courier New", monospace; }
+sub, sup { line-height: 0; }
+
+/* ---------- sampul ---------- */
+.cover { height: 23.6cm; display: flex; flex-direction: column; align-items: center; text-align: center;
+         padding-top: 1.2cm; break-after: page; }
+.cover-kicker { font: 600 11pt Arial, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+.cover-title { font: bold 22pt/1.25 "Times New Roman", serif; margin: 1.1cm 0.4cm 0.5cm; }
+.cover-sub { font: italic 13.5pt/1.4 "Times New Roman", serif; color: #333; margin: 0 0.6cm; }
+.cover-box { margin-top: 2.2cm; min-width: 9cm; }
+.cover-label { font: 600 10pt Arial, sans-serif; text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
+               margin: 0.7cm 0 0.2cm; }
+.cover-team { margin: 0 auto; border-collapse: collapse; font-size: 12.5pt; }
+.cover-team td { padding: 2px 14px; text-align: left; }
+.cover-team td:last-child { color: var(--muted); }
+.cover-foot { margin-top: auto; font-size: 13pt; line-height: 1.5; font-weight: bold; }
+
+/* ---------- judul ---------- */
+h1.bab { break-before: page; text-align: center; font: bold 15pt/1.35 "Times New Roman", serif;
+         margin: 0 0 0.9cm; text-transform: uppercase; }
+h1.bab span { display: block; font-size: 13pt; margin-bottom: 2px; }
+h1.bab.plain span { display: none; }
+h2 { font: bold 13pt/1.3 "Times New Roman", serif; margin: 1.1em 0 0.45em; break-after: avoid; }
+h3 { font: bold italic 12pt/1.3 "Times New Roman", serif; margin: 0.9em 0 0.35em; break-after: avoid; }
+
+/* ---------- daftar isi ---------- */
+.toc { font-size: 12pt; }
+.toc > div { display: flex; align-items: baseline; margin: 0.18em 0; }
+.toc a { color: var(--ink); }
+.toc .dots { flex: 1; border-bottom: 1px dotted #888; margin: 0 6px; transform: translateY(-3px); }
+.toc .pg { min-width: 1.6em; text-align: right; }
+.toc-l1 { font-weight: bold; margin-top: 0.5em !important; }
+.toc-l2 { padding-left: 1.4em; }
+
+/* ---------- rumus, kode, alur ---------- */
+.eq { text-align: center; margin: 0.5em 0 0.7em; font-size: 12pt; }
+pre { font: 9.5pt/1.4 Consolas, "Courier New", monospace; background: var(--tint); border-radius: 4px;
+      padding: 8px 12px; margin: 0.4em 0 0.8em; white-space: pre-wrap; text-align: left; break-inside: avoid; }
+.flow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 0.4em 0 0.9em; break-inside: avoid; }
+.flow > div { border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; background: var(--tint);
+              font-size: 10.5pt; line-height: 1.35; text-align: left; }
+.flow b { color: var(--accent); }
+.gh { font: 600 11pt Arial, sans-serif; background: var(--tint); padding: 7px 10px; border-radius: 4px; text-align: left; }
+.kw { font-size: 11pt; }
+
+/* ---------- gambar & tabel ---------- */
+figure { margin: 0.6em 0 1em; text-align: center; break-inside: avoid; }
+figure img { max-width: 100%; }
+figcaption { font-size: 10.5pt; line-height: 1.35; color: #333; margin-top: 4px; text-align: center; padding: 0 0.5cm; }
+.tbl { margin: 0.6em 0 1em; break-inside: avoid; }
+.tcap { font-size: 10.5pt; text-align: center; margin-bottom: 4px; }
+table { width: 100%; border-collapse: collapse; font-size: 10pt; line-height: 1.3; text-align: left; }
+th { border-top: 1.5px solid #222; border-bottom: 1px solid #222; padding: 4px 5px; font-weight: bold; vertical-align: bottom; }
+td { border-bottom: 1px solid #ddd; padding: 3.5px 5px; vertical-align: top; }
+tbody tr:last-child td { border-bottom: 1.5px solid #222; }
+table.num td:not(:first-child), table.num th:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
+table.small { font-size: 9.2pt; }
+
+/* ---------- pustaka ---------- */
+ol.refs { padding-left: 2.7em; font-size: 11pt; line-height: 1.4; text-align: left; }
+ol.refs li { margin-bottom: 0.35em; word-break: break-word; }
+ol.refs li::marker { content: "[" counter(list-item) "]  "; }

@@ -1,11 +1,12 @@
-"""Analisis sensitivitas (pakai GA, bobot utama) terhadap asumsi/constraint:
+"""Analisis sensitivitas (pendekatan dua tingkat: pencarian lokal Bagian B + rute
+optimal per SPPG, bobot utama) terhadap asumsi/constraint:
 
 1. Kapasitas: maksimal 1, 2, 3, 4 sekolah per Granmax
 2. Kemacetan: waktu tempuh dikali faktor 1-10 (melonggarkan asumsi "tidak macet")
    -> kapan batas 3 jam (selesai masak -> sampai sekolah) mulai mengikat?
 3. Efisiensi bensin Granmax 10 vs 14 km/liter
 
-Contoh:  python run_sensitivity.py --instance surabaya_6sppg --seeds 5
+Contoh:  python run_sensitivity.py --instance surabaya_6sppg --seeds 5 --algo RR-HC
 Hasil:   results/<instance>/sensitivity.csv, fig_sens_kapasitas.png, fig_sens_macet.png
 """
 import argparse
@@ -20,19 +21,19 @@ import numpy as np
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / "src"))
 
-from mbgvrp import algorithms as A  # noqa: E402
+from mbgvrp import local_search as LS  # noqa: E402
 from mbgvrp.problem import load_instance  # noqa: E402
 
 TRAFFIC_FACTORS = [1, 2, 4, 6, 8, 10]
 
 
-def run_case(name, config, scenario, value, overrides, seed, budget):
+def run_case(name, config, scenario, value, overrides, seed, budget, algo):
     inst = load_instance(ROOT, name, config, overrides=dict(overrides))
     exp = config["experiment"]
-    res = A.run_ga(inst, exp["main_weight"], exp["penalty"], budget=budget,
-                   rng=np.random.default_rng(seed), **config["algorithms"]["ga"])
+    res = LS.run(algo, inst, exp["main_weight"], exp["penalty"], budget,
+                 np.random.default_rng(seed), **config["assignment"]["algorithms"][algo])
     ev = res.evaluation
-    return {"scenario": scenario, "value": value, "seed": seed, "fitness": res.fitness,
+    return {"scenario": scenario, "value": value, "seed": seed, "algorithm": algo, "fitness": res.fitness,
             "cost_rp": ev.cost, "km": ev.km, "mean_arrival_min": ev.mean_arrival,
             "makespan_min": ev.makespan, "n_vehicles": ev.n_vehicles, "feasible": ev.feasible,
             "late_min": ev.late_min}
@@ -43,8 +44,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--instance", default="surabaya_6sppg")
     ap.add_argument("--seeds", type=int, default=5)
-    ap.add_argument("--budget", type=int, default=config["experiment"]["budget_evals"])
-    ap.add_argument("--workers", type=int, default=min(8, max(1, (os.cpu_count() or 2) - 1)))
+    ap.add_argument("--budget", type=int, default=config["assignment"]["budget_evals"])
+    ap.add_argument("--algo", default=config["assignment"].get("sensitivity_algo", "RR-HC"))
+    ap.add_argument("--workers", type=int, default=min(4, max(1, (os.cpu_count() or 2) - 1)))
     args = ap.parse_args()
     name = args.instance
     n_vehicles = config["instances"][name]["vehicles_per_sppg"]
@@ -63,7 +65,7 @@ def main():
 
     rows = []
     with ProcessPoolExecutor(max_workers=args.workers) as pool:
-        futs = [pool.submit(run_case, name, config, sc, v, ov, seed, args.budget)
+        futs = [pool.submit(run_case, name, config, sc, v, ov, seed, args.budget, args.algo)
                 for sc, v, ov in cases for seed in range(1, args.seeds + 1)]
         for k, f in enumerate(futs, start=1):
             rows.append(f.result())

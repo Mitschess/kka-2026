@@ -10,9 +10,15 @@ import numpy as np  # noqa: E402
 import requests  # noqa: E402
 
 # warna mengikuti entitas (algoritma), urutan tetap & sudah divalidasi CVD
-COLORS = {"Greedy": "#52514e", "SA": "#2a78d6", "GA": "#eb6834", "ACO": "#1baf7a",
+COLORS = {"Greedy": "#52514e", "HC": "#e87ba4", "SA": "#2a78d6", "GA": "#eb6834", "ACO": "#1baf7a",
           "NSGA-II": "#4a3aa7"}
-MARKERS = {"Greedy": "s", "SA": "o", "GA": "^", "ACO": "D", "NSGA-II": "."}
+MARKERS = {"Greedy": "s", "HC": "v", "SA": "o", "GA": "^", "ACO": "D", "NSGA-II": "."}
+# palet kategorikal 8 slot (urutan tetap) untuk Bagian A (pencarian) & B (pencarian lokal)
+PALETTE8 = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"]
+SEARCH_ORDER = ["BFS", "IDS", "DFS-B&B", "UCS", "A* (h1)", "A*", "GBFS"]
+LS_ORDER = ["HC", "HC-Sideways", "Stochastic HC", "Random-Walk HC", "RR-HC", "EHC", "SA", "GA"]
+SEARCH_COLORS = dict(zip(SEARCH_ORDER, PALETTE8))
+LS_COLORS = dict(zip(LS_ORDER, PALETTE8))
 INK, INK2, GRID = "#0b0b0b", "#52514e", "#e4e3df"
 DEPOT_COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#4a3aa7", "#e34948", "#008300"]
 
@@ -55,23 +61,83 @@ def plot_convergence(histories, greedy_f, path, title):
     _save(fig, path)
 
 
-def plot_boxplot(values, greedy_f, path, title):
-    """values: {algo: [fitness akhir per seed]}"""
+def plot_boxplot(values, greedy_f, path, title, colors=None, figsize=(7.5, 4.5), rotate=0, zoom=None):
+    """values: {algo: [fitness akhir per seed]}. greedy_f=None: tanpa garis Greedy.
+    zoom=(lo, hi): tambah panel kedua yang memperbesar rentang fitness [lo, hi]."""
+    pal = colors or COLORS
     algos = list(values)
-    fig, ax = plt.subplots(figsize=(6.5, 4.5))
-    bp = ax.boxplot([values[a] for a in algos], widths=0.5, patch_artist=True,
-                    medianprops={"color": INK, "linewidth": 1.5})
-    for patch, a in zip(bp["boxes"], algos):
-        patch.set_facecolor(COLORS[a])
-        patch.set_alpha(0.35)
-        patch.set_edgecolor(COLORS[a])
-    for i, a in enumerate(algos, start=1):
-        jitter = np.random.default_rng(0).uniform(-0.12, 0.12, len(values[a]))
-        ax.scatter(np.full(len(values[a]), i) + jitter, values[a], s=18, color=COLORS[a], zorder=3)
-    ax.axhline(greedy_f, color=COLORS["Greedy"], linestyle="--", linewidth=1.5)
-    ax.text(len(algos) + 0.45, greedy_f, "Greedy", color=INK2, va="bottom", ha="right", fontsize=9)
-    ax.set_xticks(range(1, len(algos) + 1), algos)
-    _style(ax, title, "", "Fitness akhir (lebih kecil = lebih baik)")
+    if zoom:
+        fig, axes = plt.subplots(2, 1, figsize=(figsize[0], figsize[1] * 1.55), sharex=True,
+                                 gridspec_kw={"height_ratios": [1.15, 1]})
+    else:
+        fig, ax0 = plt.subplots(figsize=figsize)
+        axes = [ax0]
+    for k, ax in enumerate(axes):
+        bp = ax.boxplot([values[a] for a in algos], widths=0.5, patch_artist=True, showfliers=False,
+                        medianprops={"color": INK, "linewidth": 1.5})
+        for patch, a in zip(bp["boxes"], algos):
+            patch.set_facecolor(pal[a])
+            patch.set_alpha(0.35)
+            patch.set_edgecolor(pal[a])
+        for i, a in enumerate(algos, start=1):
+            jitter = np.random.default_rng(0).uniform(-0.12, 0.12, len(values[a]))
+            ax.scatter(np.full(len(values[a]), i) + jitter, values[a], s=18, color=pal[a], zorder=3)
+        if greedy_f is not None and k == 0:
+            ax.axhline(greedy_f, color=COLORS["Greedy"], linestyle="--", linewidth=1.5)
+            ax.text(len(algos) + 0.45, greedy_f, "Greedy", color=INK2, va="bottom", ha="right", fontsize=9)
+        ax.set_xticks(range(1, len(algos) + 1), algos, rotation=rotate, ha="right" if rotate else "center")
+        if k == 0:
+            _style(ax, title, "", "Fitness akhir (lebih kecil = lebih baik)")
+        else:
+            ax.set_ylim(*zoom)
+            ax.ticklabel_format(axis="y", useOffset=False)
+            _style(ax, "", "", "Diperbesar")
+    if zoom:
+        axes[0].tick_params(labelbottom=False)
+    _save(fig, path)
+
+
+def plot_convergence_log(histories, budget, ref_f, ref_label, path, title, colors, inset=None, styles=None):
+    """histories: {algo: [[(evals, best_f), ...] per seed]}. Sumbu x logaritmik; run yang
+    berhenti lebih awal (optimum lokal) diperpanjang datar sampai anggaran habis.
+    inset=(x0, x1, y0, y1): panel kecil yang memperbesar ujung kurva. styles: {algo: linestyle}."""
+    fig, ax = plt.subplots(figsize=(9, 4.8))
+    grid = np.unique(np.logspace(1, np.log10(budget), 160).round())
+    ends, curves_of = [], {}
+    for algo, runs in histories.items():
+        curves = []
+        for h in runs:
+            e = [x for x, _ in h] + [budget]
+            f = [y for _, y in h] + [h[-1][1]]
+            idx = np.searchsorted(e, grid, side="right") - 1
+            curves.append(np.where(idx >= 0, np.array(f)[np.clip(idx, 0, None)], np.nan))
+        med = np.nanmedian(np.array(curves), axis=0)
+        curves_of[algo] = med
+        ends.append(med[-1])
+    axes = [ax]
+    if inset:
+        ins = ax.inset_axes([0.06, 0.1, 0.31, 0.45])
+        axes.append(ins)
+    for a_ in axes:
+        for algo, med in curves_of.items():
+            a_.plot(grid, med, color=colors[algo], linewidth=2, linestyle=(styles or {}).get(algo, "-"),
+                    label=algo if a_ is ax else None)
+    ax.axhline(ref_f, color=COLORS["Greedy"], linestyle="--", linewidth=1.5)
+    ax.text(grid[0], ref_f, f" {ref_label}", color=INK2, va="bottom", fontsize=9)
+    ax.set_xscale("log")
+    lo = min(ends)
+    ax.set_ylim(lo - 0.02 * lo, max(ref_f, lo) + 0.25 * (max(ref_f, lo) - lo) + 0.01)
+    _style(ax, title, "Jumlah evaluasi fitness (skala log)", "Fitness terbaik, median 30 seed")
+    if inset:
+        ins.set_xscale("log")
+        ins.set_xlim(inset[0], inset[1])
+        ins.set_ylim(inset[2], inset[3])
+        ins.ticklabel_format(axis="y", useOffset=False)
+        ins.tick_params(labelsize=8, colors=INK2)
+        ins.grid(True, color=GRID, linewidth=0.6)
+        ins.set_title("diperbesar", fontsize=8, color=INK2, loc="left")
+        ax.indicate_inset_zoom(ins, edgecolor=INK2)
+    ax.legend(frameon=False, fontsize=9, loc="upper left", bbox_to_anchor=(1.01, 1))
     _save(fig, path)
 
 
@@ -84,9 +150,10 @@ def plot_pareto(nsga_front, ws_points, path, title):
             linewidth=2, label="NSGA-II (Pareto front)")
     ax.scatter([p[0] / 1000 for p in f], [p[1] for p in f], s=14, color=COLORS["NSGA-II"])
     for algo, pts in ws_points.items():
-        ax.scatter([p[0] / 1000 for p in pts], [p[1] for p in pts], s=70, marker=MARKERS[algo],
-                   facecolor="none" if algo != "Greedy" else COLORS[algo],
-                   edgecolor=COLORS[algo], linewidth=1.8, label=f"{algo} (weighted sum)")
+        col = COLORS.get(algo) or LS_COLORS.get(algo, "#2a78d6")
+        ax.scatter([p[0] / 1000 for p in pts], [p[1] for p in pts], s=70, marker=MARKERS.get(algo, "o"),
+                   facecolor="none" if algo != "Greedy" else col,
+                   edgecolor=col, linewidth=1.8, label=f"{algo} (weighted sum)")
     _style(ax, title, "Biaya bensin total (ribu Rp)", "Rata-rata waktu tiba di sekolah (menit)")
     ax.legend(frameon=False)
     _save(fig, path)
@@ -208,3 +275,48 @@ def map_routes_html(inst, solutions, path, cache_path=None):
     fmap.save(str(path))
     if cache_path:
         Path(cache_path).write_text(json.dumps(cache), encoding="utf-8")
+
+
+# ------------------------------------------------------- Bagian A (algoritma pencarian)
+SEARCH_MARKERS = {"BFS": "o", "IDS": "s", "DFS-B&B": "D", "UCS": "^", "A* (h1)": "v", "A*": "*",
+                  "GBFS": "P"}
+
+
+def plot_search_scaling(summary, path, title):
+    """summary: baris {k, algorithm, solved_rate, expanded_median, max_stored_median}.
+    Dua panel (small multiples, sumbu y log): node diekspansi dan node tersimpan.
+    Titik k yang tidak semua sub-masalahnya selesai (kena batas node) tidak digambar."""
+    algos = list(dict.fromkeys(r["algorithm"] for r in summary))
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4.6))
+    panels = [("expanded_median", "Node diekspansi (median, skala log)"),
+              ("max_stored_median", "Node tersimpan maksimum (median, skala log)")]
+    for ax, (col, ylabel) in zip(axes, panels):
+        for a in algos:
+            rs = [r for r in summary if r["algorithm"] == a and r["solved_rate"] == 1]
+            ax.plot([r["k"] for r in rs], [max(r[col], 1) for r in rs], color=SEARCH_COLORS[a],
+                    marker=SEARCH_MARKERS[a], markersize=8 if a != "A*" else 11, linewidth=2,
+                    label="A* (h2)" if a == "A*" else a)
+        ax.set_yscale("log")
+        ks = sorted({r["k"] for r in summary})
+        ax.set_xticks(ks)
+        _style(ax, "", "Jumlah sekolah di SPPG (k)", ylabel)
+    axes[0].legend(frameon=False, fontsize=9)
+    fig.suptitle(title, x=0.01, ha="left", fontsize=12, color=INK)
+    _save(fig, path)
+
+
+def plot_search_gap(gaps, path, title):
+    """gaps: {algo: [selisih % terhadap optimum per sub-masalah]} -> batang rata-rata."""
+    algos = list(gaps)
+    means = [float(np.nanmean(gaps[a])) for a in algos]
+    fig, ax = plt.subplots(figsize=(7.5, 4))
+    y = np.arange(len(algos))[::-1]
+    ax.barh(y, means, height=0.55, color=[SEARCH_COLORS[a] for a in algos])
+    for yi, v in zip(y, means):
+        ax.text(v + max(means) * 0.01, yi, f"{v:.1f}%" if v > 1e-6 else "0% (optimal)",
+                va="center", fontsize=9, color=INK2)
+    ax.set_yticks(y, ["A* (h2)" if a == "A*" else a for a in algos])
+    ax.set_xlim(0, max(means) * 1.2 + 1)
+    _style(ax, title, "Rata-rata selisih biaya terhadap optimum (%)", "")
+    ax.grid(axis="y", visible=False)
+    _save(fig, path)

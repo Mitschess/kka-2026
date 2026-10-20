@@ -12,6 +12,17 @@ Bobot utama w = 0.5 (w=1: murni bensin, w=0: murni waktu)
   Granmax  8: SPPG-TDK -> SD Negeri Banyu Urip III/ 354 (tiba 4.8 mnt) -> SD Negeri Putat Jaya IV/380 (tiba 22.6 mnt) -> kembali  [10.59 km, Rp7,567]
   Granmax  9: SPPG-TDK -> KB-TK-SD Kristen Petra 7 (tiba 6.2 mnt) -> TK, SD, SMP Mandala (tiba 24.0 mnt) -> kembali  [15.43 km, Rp11,018]
 
+== HC: Rp59,973 (83.96 km, 6.00 L), rata-rata tiba 13.0 mnt, terakhir 26.6 mnt, 9 Granmax, fitness 1.9951
+  Granmax  1: SPPG-KRB -> SMP UNESA 1 Surabaya (tiba 4.0 mnt) -> SMP Negeri 38 Surabaya (tiba 20.5 mnt) -> kembali  [4.14 km, Rp2,956]
+  Granmax  2: SPPG-KRB -> SD Al Islamiyah (tiba 3.5 mnt) -> SD Muhammadiyah 17 (tiba 21.5 mnt) -> kembali  [9.33 km, Rp6,667]
+  Granmax  3: SPPG-KRB -> SD Negeri Simokerto I (tiba 3.2 mnt) -> RA, MI, dan SMA Darus Sa'adah (tiba 20.2 mnt) -> kembali  [9.96 km, Rp7,117]
+  Granmax  4: SPPG-SMK -> SMP Tritunggal (tiba 3.1 mnt) -> MI Al Azhar (tiba 23.2 mnt) -> kembali  [9.95 km, Rp7,104]
+  Granmax  5: SPPG-SMK -> TK, SD, SMP Mandala (tiba 3.4 mnt) -> MI Darusalam (tiba 26.6 mnt) -> kembali  [12.34 km, Rp8,815]
+  Granmax  6: SPPG-SMK -> SD Negeri Kapasan V (tiba 2.2 mnt) -> MI Ma'arif NU Nurul Huda I (tiba 19.8 mnt) -> kembali  [2.73 km, Rp1,953]
+  Granmax  7: SPPG-TDK -> SD Negeri Banyu Urip III/ 354 (tiba 4.8 mnt) -> SD Negeri Putat Jaya IV/380 (tiba 22.6 mnt) -> kembali  [10.59 km, Rp7,567]
+  Granmax  8: SPPG-TDK -> SD Negeri Jepara I (tiba 3.3 mnt) -> SMP Kartini (tiba 25.5 mnt) -> kembali  [14.70 km, Rp10,500]
+  Granmax  9: SPPG-TDK -> SD Negeri Bubutan III (tiba 3.4 mnt) -> KB-TK-SD Kristen Petra 7 (tiba 23.6 mnt) -> kembali  [10.21 km, Rp7,295]
+
 == SA: Rp59,973 (83.96 km, 6.00 L), rata-rata tiba 13.0 mnt, terakhir 26.6 mnt, 9 Granmax, fitness 1.9951
   Granmax  1: SPPG-KRB -> SD Al Islamiyah (tiba 3.5 mnt) -> SD Muhammadiyah 17 (tiba 21.5 mnt) -> kembali  [9.33 km, Rp6,667]
   Granmax  2: SPPG-KRB -> SMP UNESA 1 Surabaya (tiba 4.0 mnt) -> SMP Negeri 38 Surabaya (tiba 20.5 mnt) -> kembali  [4.14 km, Rp2,956]

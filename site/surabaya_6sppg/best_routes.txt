@@ -21,6 +21,26 @@ Bobot utama w = 0.5 (w=1: murni bensin, w=0: murni waktu)
   Granmax 17: SPPG-JWS -> SDN Tenggilis Mejoyo 1 (tiba 4.9 mnt) -> SMP & SMA Khadijah Surabaya (tiba 25.3 mnt) -> PG TK SD Darul Ilmy (tiba 46.4 mnt) -> kembali  [18.04 km, Rp12,883]
   Granmax 18: SPPG-MLY -> SMP Negeri 18 Surabaya (tiba 6.0 mnt) -> SD Negeri Ploso V (tiba 27.7 mnt) -> kembali  [13.43 km, Rp9,593]
 
+== HC: Rp133,272 (186.58 km, 13.33 L), rata-rata tiba 17.6 mnt, terakhir 44.5 mnt, 18 Granmax, fitness 2.0869
+  Granmax  1: SPPG-KRB -> SMP UNESA 1 Surabaya (tiba 4.0 mnt) -> SD Negeri Perak Barat VI (tiba 21.1 mnt) -> kembali  [6.18 km, Rp4,415]
+  Granmax  2: SPPG-KRB -> SD Al Islamiyah (tiba 3.5 mnt) -> KB-TK-SD Kristen Petra 7 (tiba 22.3 mnt) -> SD-SMP-SMA Sasana Bhakti (tiba 38.0 mnt) -> kembali  [8.92 km, Rp6,373]
+  Granmax  3: SPPG-KRB -> SMP Negeri 38 Surabaya (tiba 2.8 mnt) -> SD Al Istiqomah (tiba 22.4 mnt) -> kembali  [9.40 km, Rp6,712]
+  Granmax  4: SPPG-SMK -> SD Negeri Simokerto I (tiba 3.0 mnt) -> SD Muhammadiyah 17 (tiba 19.2 mnt) -> RA, MI, dan SMA Darus Sa'adah (tiba 35.4 mnt) -> kembali  [5.13 km, Rp3,662]
+  Granmax  5: SPPG-SMK -> SMP Tritunggal (tiba 3.1 mnt) -> TK, SD, SMP Mandala (tiba 20.7 mnt) -> MI Al Azhar (tiba 40.6 mnt) -> kembali  [10.77 km, Rp7,692]
+  Granmax  6: SPPG-SMK -> SD Negeri Kapasan V (tiba 2.2 mnt) -> MI Ma'arif NU Nurul Huda I (tiba 19.8 mnt) -> MI Darusalam (tiba 44.5 mnt) -> kembali  [10.10 km, Rp7,213]
+  Granmax  7: SPPG-TDK -> SD Negeri Bubutan III (tiba 3.4 mnt) -> SD Negeri Jepara I (tiba 24.1 mnt) -> kembali  [9.27 km, Rp6,619]
+  Granmax  8: SPPG-TDK -> SD Negeri Banyu Urip III/ 354 (tiba 4.8 mnt) -> SMP & SMA Khadijah Surabaya (tiba 26.0 mnt) -> kembali  [17.88 km, Rp12,770]
+  Granmax  9: SPPG-TDK -> SD Negeri Putat Jaya IV/380 (tiba 6.2 mnt) -> SMP Kartini (tiba 24.2 mnt) -> kembali  [13.95 km, Rp9,964]
+  Granmax 10: SPPG-KBR -> SD Miftahul Ulum (tiba 4.2 mnt) -> SD Negeri Rungkut Kidul I/267 (tiba 23.8 mnt) -> kembali  [8.77 km, Rp6,262]
+  Granmax 11: SPPG-KBR -> KB, TK, SD Khadijah (tiba 6.9 mnt) -> MTs Nurul Khoir (tiba 23.8 mnt) -> kembali  [7.10 km, Rp5,073]
+  Granmax 12: SPPG-KBR -> MI Negeri Medokan Ayu (tiba 4.6 mnt) -> SD Islam Al Mubarok (tiba 23.4 mnt) -> kembali  [8.25 km, Rp5,896]
+  Granmax 13: SPPG-JWS -> SDN Tenggilis Mejoyo 1 (tiba 4.9 mnt) -> TK SD AL AZHAR SYIFA BUDI (tiba 24.5 mnt) -> kembali  [10.27 km, Rp7,336]
+  Granmax 14: SPPG-JWS -> SMP Negeri 32 Surabaya (tiba 6.1 mnt) -> PG TK SD Darul Ilmy (tiba 26.7 mnt) -> SD Negeri Kebonsari 2 (tiba 44.2 mnt) -> kembali  [14.12 km, Rp10,085]
+  Granmax 15: SPPG-JWS -> SMP Kartika Nasional (tiba 3.4 mnt) -> SMP N 17 Surabaya (tiba 21.2 mnt) -> kembali  [9.35 km, Rp6,681]
+  Granmax 16: SPPG-MLY -> SMP Muhammadiyah 10 Surabaya (tiba 3.4 mnt) -> SMP Negeri 18 Surabaya (tiba 22.9 mnt) -> kembali  [9.93 km, Rp7,095]
+  Granmax 17: SPPG-MLY -> SD Negeri Kalijudan II (tiba 6.5 mnt) -> SD Negeri Ploso V (tiba 26.1 mnt) -> kembali  [11.29 km, Rp8,064]
+  Granmax 18: SPPG-MLY -> SD Negeri Kejawen Putih 1 (tiba 3.4 mnt) -> TK dan SD Petra 5 (tiba 23.2 mnt) -> SD Negeri Mojo VI Nomor 225 (tiba 43.7 mnt) -> kembali  [15.91 km, Rp11,362]
+
 == SA: Rp143,007 (200.21 km, 14.30 L), rata-rata tiba 17.5 mnt, terakhir 47.2 mnt, 18 Granmax, fitness 2.1070
   Granmax  1: SPPG-KRB -> SD Al Islamiyah (tiba 3.5 mnt) -> SD Al Istiqomah (tiba 23.5 mnt) -> kembali  [10.50 km, Rp7,502]
   Granmax  2: SPPG-KRB -> SMP UNESA 1 Surabaya (tiba 4.0 mnt) -> SMP Negeri 38 Surabaya (tiba 20.5 mnt) -> SD-SMP-SMA Sasana Bhakti (tiba 38.8 mnt) -> kembali  [8.83 km, Rp6,307]

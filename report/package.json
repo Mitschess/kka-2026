@@ -1,0 +1,15 @@
+{
+  "name": "mbg-vrp-report",
+  "private": true,
+  "description": "Generator presentasi (pptxgenjs) untuk proyek ETS MBG-VRP",
+  "scripts": {
+    "deck": "node build_deck.js"
+  },
+  "dependencies": {
+    "pptxgenjs": "^4.0.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-icons": "^5.7.0",
+    "sharp": "^0.35.5"
+  }
+}

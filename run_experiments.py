@@ -1,4 +1,4 @@
-"""Eksperimen utama: Greedy vs SA vs GA vs ACO (weighted sum) dan NSGA-II (Pareto).
+"""Eksperimen utama: Greedy vs HC vs SA vs GA vs ACO (weighted sum) dan NSGA-II (Pareto).
 
 Contoh:
   python run_experiments.py                          # semua instance, setting config.json
@@ -9,8 +9,8 @@ Hasil per instance di results/<instance>/ :
   runs.csv               semua run (algoritma, bobot, seed, objektif, waktu komputasi)
   summary_main_w.csv     ringkasan mean/std/best pada bobot utama
   summary_all_w.csv      ringkasan untuk setiap bobot
-  stat_tests.csv         uji Mann-Whitney U antar algoritma (bobot utama)
-  hypervolume.csv        hypervolume weighted-sum (SA/GA/ACO) vs NSGA-II per seed
+  stat_tests.csv         uji Mann-Whitney U antar algoritma + koreksi Holm (bobot utama)
+  hypervolume.csv        hypervolume weighted-sum (HC/SA/GA/ACO) vs NSGA-II per seed
   nsga2_front.csv        Pareto front gabungan NSGA-II
   best_routes.txt        rute terbaik tiap algoritma dalam bahasa manusia
   fig_*.png, peta_rute.html
@@ -35,7 +35,7 @@ from mbgvrp import algorithms as A  # noqa: E402
 from mbgvrp.metrics import hypervolume_2d, nondominated  # noqa: E402
 from mbgvrp.problem import load_instance  # noqa: E402
 
-SINGLE = {"SA": A.run_sa, "GA": A.run_ga, "ACO": A.run_aco}
+SINGLE = {"HC": A.run_hc, "SA": A.run_sa, "GA": A.run_ga, "ACO": A.run_aco}
 _CACHE = {}
 
 
@@ -138,7 +138,7 @@ def report(name, config, rows, routes_of, histories, nsga, out):
     inst = _instance(name, config)
     exp = config["experiment"]
     w0 = exp["main_weight"]
-    algos = ["SA", "GA", "ACO"]
+    algos = ["HC", "SA", "GA", "ACO"]
     fmt = lambda x: f"{x:.4f}"  # noqa: E731
 
     write_csv(out / "runs.csv", rows)
@@ -156,7 +156,14 @@ def report(name, config, rows, routes_of, histories, nsga, out):
             better = a if np.median(fa) < np.median(fb) else b
             tests.append({"pair": f"{a} vs {b}", "U": stat, "p_value": p,
                           "median_a": np.median(fa), "median_b": np.median(fb),
-                          "significant_5pct": p < 0.05, "better_median": better})
+                          "better_median": better})
+    # koreksi Holm-Bonferroni karena ada banyak pasangan yang diuji sekaligus
+    order = sorted(range(len(tests)), key=lambda k: tests[k]["p_value"])
+    running = 0.0
+    for rank, k in enumerate(order):
+        running = max(running, min(1.0, (len(tests) - rank) * tests[k]["p_value"]))
+        tests[k]["p_holm"] = running
+        tests[k]["significant_5pct"] = running < 0.05
     write_csv(out / "stat_tests.csv", tests)
 
     # ---- hypervolume (objektif ternormalisasi terhadap ref_cost & ref_time)
@@ -204,6 +211,15 @@ def report(name, config, rows, routes_of, histories, nsga, out):
     knee = int(np.argmin(np.linalg.norm(scaled, axis=1)))
     picks = {"NSGA-II termurah": front_sol[0], "NSGA-II knee": front_sol[knee],
              "NSGA-II tercepat": front_sol[-1]}
+
+    # versi mesin-baca untuk laporan/presentasi (scripts & report/)
+    best_json = {}
+    for label, (routes, ev, *rest) in list(best.items()) + list(picks.items()):
+        best_json[label] = {"routes": [[int(d), [int(s) for s in seq]] for d, seq in routes],
+                            "fitness": rest[0] if rest else None, "cost_rp": ev.cost, "km": ev.km,
+                            "mean_arrival_min": ev.mean_arrival, "makespan_min": ev.makespan,
+                            "n_vehicles": ev.n_vehicles}
+    (out / "best_solutions.json").write_text(json.dumps(best_json, indent=1), encoding="utf-8")
 
     with open(out / "best_routes.txt", "w", encoding="utf-8") as f:
         f.write(f"Instance {name}: {inst.m} SPPG, {inst.n} sekolah, {inst.R} Granmax, "
@@ -254,7 +270,8 @@ def report(name, config, rows, routes_of, histories, nsga, out):
         hv[r["algorithm"]].append(r["hypervolume"])
     print("hypervolume (mean): " + ", ".join(f"{a} {np.mean(v):.4f}" for a, v in hv.items()))
     for t in tests:
-        print(f"Mann-Whitney {t['pair']}: p = {t['p_value']:.4g} -> lebih baik: {t['better_median']}"
+        print(f"Mann-Whitney {t['pair']}: p = {t['p_value']:.4g} (Holm {t['p_holm']:.4g})"
+              f" -> lebih baik: {t['better_median']}"
               f"{'' if t['significant_5pct'] else ' (tidak signifikan)'}")
 
 
@@ -290,7 +307,7 @@ def run_instance(name, config, seeds, budget, workers):
     jobs += [(("NSGA-II", None, seed), task_nsga2, (name, config, seed, nsga_budget))
              for seed in range(1, seeds + 1)]
     jobs += [((algo, w, seed), task_single, (name, config, algo, w, seed, budget))
-             for algo in ["ACO", "GA", "SA"] for w in exp["weights"] for seed in range(1, seeds + 1)]
+             for algo in ["ACO", "GA", "SA", "HC"] for w in exp["weights"] for seed in range(1, seeds + 1)]
     results = {key: done[key] for key, *_ in jobs if key in done}
     if results:
         print(f"  {name}: melanjutkan, {len(results)}/{len(jobs)} run sudah ada di checkpoint")

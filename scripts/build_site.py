@@ -17,9 +17,10 @@ SITE = ROOT / "site"
 FILES = ["animasi.html", "peta_rute.html", "best_routes.txt"]
 FIGS = [
     ("fig_pareto.png", "Trade-off biaya bensin vs waktu tiba (Pareto front NSGA-II + weighted sum)"),
-    ("fig_konvergensi.png", "Konvergensi SA, GA, ACO (median 30 seed)"),
+    ("fig_konvergensi.png", "Konvergensi HC, SA, GA, ACO (median 30 seed)"),
     ("fig_boxplot.png", "Sebaran fitness akhir 30 seed"),
     ("fig_rute_Greedy.png", "Rute terbaik Greedy"),
+    ("fig_rute_HC.png", "Rute terbaik HC"),
     ("fig_rute_SA.png", "Rute terbaik SA"),
     ("fig_rute_GA.png", "Rute terbaik GA"),
     ("fig_rute_ACO.png", "Rute terbaik ACO"),
@@ -27,7 +28,7 @@ FIGS = [
     ("fig_sens_kapasitas_waktu.png", "Sensitivitas kapasitas: waktu"),
     ("fig_sens_macet.png", "Sensitivitas kemacetan vs batas 3 jam"),
 ]
-ORDER = ["Greedy", "SA", "GA", "ACO"]
+ORDER = ["Greedy", "HC", "SA", "GA", "ACO"]
 
 
 def read_csv(path):
@@ -105,7 +106,7 @@ def main():
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rute MBG Surabaya</title>
-<meta name="description" content="Optimasi rute distribusi Makan Bergizi Gratis dari SPPG ke sekolah di Surabaya: Greedy, SA, GA, ACO, NSGA-II.">
+<meta name="description" content="Optimasi rute distribusi Makan Bergizi Gratis dari SPPG ke sekolah di Surabaya: Greedy, Hill Climbing, SA, GA, ACO, NSGA-II.">
 <style>
   :root {{ --bg:#f6f6f4; --surface:#fff; --ink:#1d1d1b; --muted:#6b6b66; --line:#e2e2de; --accent:#2a78d6; --best:#eaf2fc; }}
   @media (prefers-color-scheme: dark) {{
@@ -146,7 +147,7 @@ def main():
     bensin dan rata-rata waktu tiba makanan, dengan batas 3 sekolah per Granmax dan 3 jam sejak
     makanan selesai dimasak.</p>
   <ul>
-    <li>Algoritma: Greedy (baseline), Simulated Annealing, Genetic Algorithm, Ant Colony Optimization (MAX-MIN), NSGA-II.</li>
+    <li>Algoritma: Greedy (baseline), Hill Climbing (random restart), Simulated Annealing, Genetic Algorithm, Ant Colony Optimization (MAX-MIN), NSGA-II.</li>
     <li>Data: sekolah dari OpenStreetMap, lokasi SPPG dari berita (koordinat perkiraan), jarak &amp; waktu tempuh jalan asli dari OSRM.</li>
   </ul>
   {sections}
