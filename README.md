@@ -57,6 +57,7 @@ src/mbgvrp/
   search.py              BFS, IDS, DFS-B&B, UCS, A* (h1, h2), Greedy Best-First
   viz.py                 grafik & peta rute
   animation_template.html tampilan animasi (Leaflet)
+  site_template.html     tampilan halaman depan situs (peta, grafik, tabel interaktif)
 run_search.py            eksperimen: sub-masalah nyata + skalabilitas k = 3..12
 make_animation.py        animasi gaya VisuAlgo (pencarian rute + pengiriman)
 results/<instance>/      rute_terbaik.json|txt, fig_rute_terbaik.png, peta_rute_terbaik.html, animasi.html
@@ -102,8 +103,12 @@ panah kiri/kanan = langkah. Tautan langsung juga bisa, misalnya
 
 ## Deploy hasil ke web (Vercel)
 
-Halaman depan (`site/index.html`) menampilkan perbandingan algoritma pencarian rute per instance
-(dari `results/search_real.csv`). Semua hasil adalah file statis, jadi cukup dihosting tanpa server:
+Halaman depan (`site/index.html`, template `src/mbgvrp/site_template.html`) interaktif: peta rute
+tiap algoritma di jalan asli (bisa disorot per Granmax dan dibandingkan dengan rute optimal), grafik
+perbandingan, tabel yang bisa diurutkan, grafik skalabilitas, serta mode terang/gelap. Angkanya dibaca
+dari `results/search_real.csv`, `results/search_summary.csv`, dan `results/<instance>/rute_algoritma.json`;
+tidak ada pencarian yang dijalankan ulang. Skrip ini juga memasang Vercel Web Analytics di setiap
+halaman. Semua hasil adalah file statis, jadi cukup dihosting tanpa server:
 
 ```bash
 python scripts/build_site.py      # kumpulkan animasi, peta, grafik + halaman depan ke site/

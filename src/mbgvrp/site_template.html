@@ -1,0 +1,1247 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rute MBG Surabaya</title>
+<meta name="description" content="Optimasi distribusi Makan Bergizi Gratis dari SPPG ke sekolah di Surabaya: rute Granmax terbaik dengan algoritma pencarian (BFS, IDS, DFS + B&B, UCS, A*, Greedy best-first).">
+<meta name="theme-color" content="#0a0c0f">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230a0c0f'/%3E%3Cpath d='M8 22c4-1 4-9 8-10s5 6 8 4' fill='none' stroke='%231baf7a' stroke-width='3' stroke-linecap='round'/%3E%3Ccircle cx='8' cy='22' r='3' fill='%232a78d6'/%3E%3Ccircle cx='24' cy='16' r='3' fill='%23eb6834'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+  document.documentElement.classList.add("js");
+  try { const t = localStorage.getItem("mbg-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) { /* abaikan */ }
+</script>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f7f7f4; --surface: #ffffff; --surface-2: #f1f0ec; --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+    --line: #e4e3dd; --grid: #e8e7e1; --axis: #c3c2b7; --ring: rgba(11, 11, 11, .10); --hover: rgba(11, 11, 11, .05);
+    --btn: #0b0b0b; --btn-ink: #ffffff; --tip: #0b0b0b; --tip-ink: #f7f7f4;
+    --good: #0ca30c; --good-ink: #006300; --good-bg: #e6f5e6;
+    --warn: #fab219; --warn-ink: #7a5200; --warn-bg: #fff3d6;
+    --bad: #ec835a; --bad-ink: #a8401a; --bad-bg: #fdede6;
+    --c1: #2a78d6; --c2: #eb6834; --c3: #1baf7a; --c4: #eda100; --c5: #e87ba4; --c6: #008300; --c7: #6250d6;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 10px 30px -12px rgba(0, 0, 0, .12);
+    --radius: 16px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --page: #0d0d0d; --surface: #171716; --surface-2: #21211f; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #8f8d86;
+      --line: #2c2c2a; --grid: #262624; --axis: #3d3d3a; --ring: rgba(255, 255, 255, .10); --hover: rgba(255, 255, 255, .06);
+      --btn: #f0efec; --btn-ink: #0b0b0b; --tip: #f0efec; --tip-ink: #0b0b0b;
+      --good-ink: #3fc23f; --good-bg: rgba(12, 163, 12, .15); --warn-ink: #fab219; --warn-bg: rgba(250, 178, 25, .13);
+      --bad-ink: #f09a76; --bad-bg: rgba(236, 131, 90, .14);
+      --c1: #3987e5; --c2: #d95926; --c3: #199e70; --c4: #c98500; --c5: #d55181; --c6: #008300; --c7: #9085e9;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 10px 30px -12px rgba(0, 0, 0, .6);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #171716; --surface-2: #21211f; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #8f8d86;
+    --line: #2c2c2a; --grid: #262624; --axis: #3d3d3a; --ring: rgba(255, 255, 255, .10); --hover: rgba(255, 255, 255, .06);
+    --btn: #f0efec; --btn-ink: #0b0b0b; --tip: #f0efec; --tip-ink: #0b0b0b;
+    --good-ink: #3fc23f; --good-bg: rgba(12, 163, 12, .15); --warn-ink: #fab219; --warn-bg: rgba(250, 178, 25, .13);
+    --bad-ink: #f09a76; --bad-bg: rgba(236, 131, 90, .14);
+    --c1: #3987e5; --c2: #d95926; --c3: #199e70; --c4: #c98500; --c5: #d55181; --c6: #008300; --c7: #9085e9;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 10px 30px -12px rgba(0, 0, 0, .6);
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 72px; }
+  body { margin: 0; background: var(--page); color: var(--ink); -webkit-font-smoothing: antialiased;
+         font: 15px/1.6 "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  a { color: inherit; }
+  button { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 6px; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 20px; }
+  .num { font-variant-numeric: tabular-nums; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  /* ------------------------------------------------------------ bar atas */
+  .topbar { position: sticky; top: 0; z-index: 1100; background: var(--page);
+            background: color-mix(in srgb, var(--page) 84%, transparent);
+            backdrop-filter: saturate(1.5) blur(14px); -webkit-backdrop-filter: saturate(1.5) blur(14px);
+            border-bottom: 1px solid var(--line); }
+  .topbar .wrap { display: flex; align-items: center; gap: 14px; height: 62px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; text-decoration: none; letter-spacing: -.01em; white-space: nowrap; }
+  .brand svg { width: 30px; height: 30px; flex-shrink: 0; }
+  .nav { display: flex; gap: 2px; }
+  .nav a { text-decoration: none; color: var(--ink-2); font-weight: 600; font-size: 13.5px; padding: 6px 10px; border-radius: 8px; transition: background .15s, color .15s; }
+  .nav a:hover, .nav a.on { color: var(--ink); background: var(--hover); }
+  .grow { flex: 1; }
+  .seg { display: inline-flex; background: var(--surface-2); border: 1px solid var(--line); border-radius: 11px; padding: 3px; gap: 2px; }
+  .seg button { border: 0; background: transparent; color: var(--ink-2); font-size: 13px; font-weight: 600; padding: 6px 12px;
+                border-radius: 8px; cursor: pointer; white-space: nowrap; transition: background .15s, color .15s, box-shadow .15s; }
+  .seg button:hover { color: var(--ink); }
+  .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0, 0, 0, .08), 0 0 0 1px var(--ring); }
+  .seg button small { font-weight: 500; color: var(--muted); margin-left: 4px; }
+  .iconbtn { width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); cursor: pointer;
+             display: inline-grid; place-items: center; flex-shrink: 0; transition: border-color .15s; }
+  .iconbtn:hover { border-color: var(--axis); }
+  .iconbtn svg { width: 18px; height: 18px; }
+
+  /* ------------------------------------------------------------ hero */
+  .hero { position: relative; overflow: hidden; isolation: isolate; background: #0a0c0f; color: #f4f4f1; }
+  .hero::before { content: ""; position: absolute; inset: 0; z-index: -3;
+    background: radial-gradient(55% 70% at 72% 38%, rgba(42, 120, 214, .22), transparent 62%),
+                radial-gradient(35% 45% at 96% 92%, rgba(235, 104, 52, .16), transparent 65%),
+                radial-gradient(30% 40% at 52% 100%, rgba(27, 175, 122, .14), transparent 70%); }
+  .hero::after { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+    background: linear-gradient(90deg, #0a0c0f 26%, rgba(10, 12, 15, .72) 46%, rgba(10, 12, 15, 0) 70%); }
+  .hero-art { position: absolute; right: -2%; top: 0; width: 68%; height: 100%; z-index: -2; }
+  .hero-art .rt { fill: none; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; opacity: .95; }
+  .hero-art .glow { fill: none; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; opacity: .35; }
+  .hero-art .draw { stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw 2.6s cubic-bezier(.45, 0, .2, 1) forwards; }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+  .hero-art .school { fill: #f4f4f1; opacity: 0; animation: pop .5s ease forwards; }
+  @keyframes pop { from { opacity: 0; } to { opacity: .92; } }
+  .hero-art .depot-pulse { transform-box: fill-box; transform-origin: center; animation: pulse 2.4s ease-out infinite; }
+  @keyframes pulse { 0% { transform: scale(1); opacity: .7; } 100% { transform: scale(3.2); opacity: 0; } }
+  .hero-inner { position: relative; padding: 92px 0 64px; max-width: 640px; }
+  .eyebrow { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 600; color: #c9c8c2;
+             border: 1px solid rgba(255, 255, 255, .14); background: rgba(255, 255, 255, .04); padding: 5px 12px 5px 9px; border-radius: 999px; }
+  .eyebrow i { width: 8px; height: 8px; border-radius: 50%; background: #1baf7a; box-shadow: 0 0 0 4px rgba(27, 175, 122, .2); }
+  .hero h1 { font-size: clamp(34px, 5.4vw, 60px); line-height: 1.04; letter-spacing: -.035em; font-weight: 800; margin: 20px 0 18px; }
+  .hero h1 .grad { background: linear-gradient(92deg, #6fb0ff 0%, #3fd6a0 48%, #ff9a6a 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .hero .lead { font-size: 17px; color: #c9c8c2; max-width: 560px; margin: 0 0 28px; }
+  .hero .lead b { color: #f4f4f1; font-weight: 600; }
+  .ctas { display: flex; flex-wrap: wrap; gap: 10px; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14.5px; text-decoration: none; padding: 12px 18px;
+         border-radius: 12px; border: 1px solid transparent; cursor: pointer; transition: transform .15s, background .15s, border-color .15s, box-shadow .15s; }
+  .btn:hover { transform: translateY(-1px); }
+  .btn.light { background: #f4f4f1; color: #0a0c0f; box-shadow: 0 8px 30px -8px rgba(111, 176, 255, .55); }
+  .btn.ghost { color: #f4f4f1; border-color: rgba(255, 255, 255, .2); background: rgba(255, 255, 255, .03); }
+  .btn.ghost:hover { border-color: rgba(255, 255, 255, .4); }
+  .btn.solid { background: var(--btn); color: var(--btn-ink); }
+  .btn.outline { border-color: var(--line); background: var(--surface); color: var(--ink); }
+  .btn.outline:hover { border-color: var(--axis); }
+  .btn svg { width: 16px; height: 16px; }
+  .hero-stats { display: grid; grid-template-columns: repeat(4, auto); gap: 8px 36px; margin-top: 46px; justify-content: start; }
+  .hero-stats div { border-left: 1px solid rgba(255, 255, 255, .16); padding-left: 14px; }
+  .hero-stats b { display: block; font-size: 28px; font-weight: 800; letter-spacing: -.02em; line-height: 1.15; }
+  .hero-stats span { font-size: 12.5px; color: #a9a8a2; }
+  .hero-cap { position: absolute; right: 20px; bottom: 16px; font-size: 11.5px; color: #8b8a85; display: flex; align-items: center; gap: 6px; }
+  .hero-cap i { width: 14px; height: 3px; border-radius: 2px; background: linear-gradient(90deg, #2a78d6, #1baf7a, #eb6834); }
+
+  /* ------------------------------------------------------------ bagian */
+  section.block { padding: 84px 0 0; }
+  .kicker { font-size: 12px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+  .kicker::before { content: ""; width: 18px; height: 2px; border-radius: 2px; background: currentColor; }
+  h2 { font-size: clamp(26px, 3.2vw, 36px); letter-spacing: -.025em; line-height: 1.12; margin: 10px 0 10px; font-weight: 800; }
+  h3 { font-size: 16px; margin: 0 0 6px; letter-spacing: -.01em; }
+  .sub { color: var(--ink-2); max-width: 760px; margin: 0 0 28px; font-size: 15.5px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .js .reveal { opacity: 0; transform: translateY(18px); transition: opacity .7s ease, transform .7s cubic-bezier(.2, .7, .2, 1); }
+  .js .reveal.in { opacity: 1; transform: none; }
+
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; counter-reset: step; }
+  .step { padding: 22px; position: relative; overflow: hidden; }
+  .step .n { width: 30px; height: 30px; border-radius: 9px; background: var(--btn); color: var(--btn-ink); font-weight: 800; font-size: 14px;
+             display: grid; place-items: center; margin-bottom: 14px; }
+  .step p { margin: 0; color: var(--ink-2); font-size: 14.5px; }
+  .step svg.ill { position: absolute; right: 10px; top: 8px; width: 92px; height: 92px; opacity: .9; }
+  .params { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+  .pill { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: var(--ink-2);
+          background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; }
+  .pill b { color: var(--ink); }
+
+  .insights { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 18px; }
+  .stat { padding: 18px 18px 16px; }
+  .stat .lbl { font-size: 13px; color: var(--ink-2); font-weight: 600; }
+  .stat .val { font-size: 30px; font-weight: 800; letter-spacing: -.025em; line-height: 1.2; margin: 4px 0 4px; }
+  .stat .val small { font-size: 15px; font-weight: 700; color: var(--ink-2); letter-spacing: 0; }
+  .stat .desc { font-size: 13px; color: var(--muted); }
+
+  /* ------------------------------------------------------------ penjelajah rute */
+  .explorer { display: grid; grid-template-columns: 330px 1fr; gap: 16px; align-items: stretch; }
+  .algo-list { display: flex; flex-direction: column; gap: 8px; }
+  .algo { text-align: left; width: 100%; background: var(--surface); border: 1px solid var(--line); border-radius: 13px; padding: 11px 14px 12px;
+          cursor: pointer; transition: border-color .15s, box-shadow .2s, transform .15s; position: relative; }
+  .algo:hover { border-color: var(--axis); transform: translateX(2px); }
+  .algo[aria-checked="true"] { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink), var(--shadow); }
+  .algo .top { display: flex; align-items: center; gap: 9px; }
+  .key { display: inline-block; width: 16px; height: 3px; border-radius: 2px; background: var(--c); flex-shrink: 0; }
+  .key.sq { width: 10px; height: 10px; border-radius: 3px; }
+  .key.dots { background: radial-gradient(circle, var(--ink-2) 1.2px, transparent 1.6px) 0 50% / 5px 3px repeat-x; }
+  .key.ring { width: 10px; height: 10px; border-radius: 50%; background: none; border: 2px dashed #9a9a96; }
+  .algo .name { font-weight: 700; font-size: 14.5px; }
+  .algo .meta { display: flex; gap: 4px 12px; color: var(--ink-2); font-size: 12.5px; margin-top: 4px; flex-wrap: wrap; padding-left: 25px; }
+  .algo .meta b { color: var(--ink); font-weight: 700; }
+  .algo .warn { font-size: 12px; color: var(--warn-ink); margin-top: 4px; padding-left: 25px; }
+  .badge { margin-left: auto; font-size: 11.5px; font-weight: 700; padding: 2px 9px 2px 6px; border-radius: 999px; display: inline-flex; gap: 5px; align-items: center; white-space: nowrap; }
+  .badge .bi { width: 15px; height: 15px; border-radius: 50%; display: grid; place-items: center; font-size: 10px; color: #fff; line-height: 1; }
+  .badge.good { color: var(--good-ink); background: var(--good-bg); } .badge.good .bi { background: var(--good); }
+  .badge.warn { color: var(--warn-ink); background: var(--warn-bg); } .badge.warn .bi { background: var(--warn); color: #3b2800; }
+  .badge.bad { color: var(--bad-ink); background: var(--bad-bg); } .badge.bad .bi { background: var(--bad); }
+
+  .mapcard { position: relative; overflow: hidden; min-height: 600px; }
+  #map { position: absolute; inset: 0; background: var(--surface-2); }
+  .maphead { position: absolute; left: 12px; top: 12px; z-index: 500; max-width: min(380px, calc(100% - 210px)); padding: 12px 14px;
+             background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+             border: 1px solid var(--line); border-radius: 13px; box-shadow: var(--shadow); }
+  .maphead .t { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 16px; }
+  .maphead p { margin: 4px 0 0; font-size: 12.5px; color: var(--ink-2); line-height: 1.5; }
+  .maptools { position: absolute; top: 12px; right: 12px; z-index: 500; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .chip { font-size: 12.5px; font-weight: 600; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 999px;
+          padding: 6px 12px; cursor: pointer; box-shadow: var(--shadow); display: inline-flex; align-items: center; gap: 6px; text-decoration: none;
+          transition: border-color .15s, background .15s, color .15s; white-space: nowrap; }
+  .chip:hover { border-color: var(--axis); }
+  .chip[aria-pressed="true"] { background: var(--btn); color: var(--btn-ink); border-color: var(--btn); }
+  .chip svg { width: 14px; height: 14px; }
+  .maplegend { position: absolute; left: 12px; bottom: 12px; z-index: 500; display: flex; flex-wrap: wrap; gap: 4px 12px; max-width: calc(100% - 80px);
+               padding: 8px 12px; font-size: 12px; font-weight: 600; color: var(--ink-2);
+               background: color-mix(in srgb, var(--surface) 92%, transparent); border: 1px solid var(--line); border-radius: 11px; }
+  .maplegend span { display: inline-flex; align-items: center; gap: 6px; }
+  .leaflet-container { font: inherit; }
+  .leaflet-tooltip { font-size: 12.5px; border-radius: 9px; padding: 7px 10px; border: 0; box-shadow: 0 6px 20px rgba(0, 0, 0, .18);
+                     background: var(--tip); color: var(--tip-ink); }
+  .leaflet-tooltip-top:before { border-top-color: var(--tip); } .leaflet-tooltip-bottom:before { border-bottom-color: var(--tip); }
+  .leaflet-tooltip-left:before { border-left-color: var(--tip); } .leaflet-tooltip-right:before { border-right-color: var(--tip); }
+  .leaflet-tooltip b { font-weight: 700; }
+  .leaflet-tooltip .tm { opacity: .7; }
+  .leaflet-bar a { background: var(--surface); color: var(--ink); border-color: var(--line) !important; }
+  .leaflet-bar a:hover { background: var(--surface-2); }
+  .leaflet-control-attribution { background: color-mix(in srgb, var(--surface) 80%, transparent) !important; color: var(--muted); }
+  .leaflet-control-attribution a { color: var(--ink-2); }
+  .depot-pin { width: 40px; height: 24px; border-radius: 8px; color: #fff; font: 800 10.5px/20px "Plus Jakarta Sans", system-ui, sans-serif;
+               text-align: center; border: 2px solid #fff; box-shadow: 0 2px 8px rgba(0, 0, 0, .35); letter-spacing: .02em; }
+  path.flow { animation: flow .7s linear infinite; }
+  @keyframes flow { to { stroke-dashoffset: -12; } }
+
+  .kpis { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-top: 16px; }
+  .kpi { padding: 14px 16px; }
+  .kpi .lbl { font-size: 12.5px; color: var(--ink-2); font-weight: 600; }
+  .kpi .val { font-size: 22px; font-weight: 800; letter-spacing: -.02em; margin-top: 2px; white-space: nowrap; }
+  .kpi .dl { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .kpi .meter { height: 6px; border-radius: 3px; background: var(--surface-2); margin-top: 8px; overflow: hidden; }
+  .kpi .meter i { display: block; height: 100%; border-radius: 3px; background: var(--good); width: 0; transition: width .8s cubic-bezier(.2, .7, .2, 1); }
+  .kpi .meter i.warn { background: var(--warn); }
+
+  details.vehs { margin-top: 16px; }
+  details.vehs summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 10px; padding: 14px 18px; font-weight: 700; }
+  details.vehs summary::-webkit-details-marker { display: none; }
+  details.vehs summary .chev { transition: transform .2s; width: 18px; height: 18px; color: var(--muted); }
+  details.vehs[open] summary .chev { transform: rotate(90deg); }
+  details.vehs summary .hint { font-weight: 500; color: var(--muted); font-size: 13px; margin-left: auto; }
+  .veh-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 10px; padding: 2px 18px 18px; max-height: 520px; overflow-y: auto; overscroll-behavior: contain; }
+  .veh { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; cursor: pointer; background: var(--surface);
+         transition: border-color .15s, box-shadow .15s, opacity .2s; }
+  .veh:hover, .veh.hot { border-color: var(--c); box-shadow: 0 0 0 1px var(--c); }
+  .veh .vh { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 13.5px; }
+  .veh .vh .dp { font-size: 11px; font-weight: 800; color: #fff; background: var(--c); border-radius: 6px; padding: 1px 6px; }
+  .veh .vh .km { margin-left: auto; font-weight: 600; color: var(--ink-2); font-size: 12.5px; }
+  .veh ol { list-style: none; margin: 8px 0 0; padding: 0 0 0 4px; font-size: 12.5px; }
+  .veh li { position: relative; padding: 0 0 6px 16px; color: var(--ink-2); display: flex; gap: 8px; }
+  .veh li::before { content: ""; position: absolute; left: 0; top: 6px; width: 7px; height: 7px; border-radius: 50%; border: 2px solid var(--c); background: var(--surface); }
+  .veh li::after { content: ""; position: absolute; left: 4px; top: 15px; bottom: -2px; width: 2px; background: var(--line); }
+  .veh li:last-child { padding-bottom: 0; } .veh li:last-child::after { display: none; }
+  .veh li span:first-child { flex: 1; color: var(--ink); }
+  .veh li .tm { white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+  /* ------------------------------------------------------------ grafik */
+  .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-bottom: 14px; }
+  .toolbar .lbl { font-size: 13px; color: var(--muted); font-weight: 600; }
+  .toolbar .seg { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .toolbar .seg::-webkit-scrollbar { display: none; }
+  .chartcard { padding: 20px 22px 16px; }
+  .chartcard .ttl { font-weight: 800; font-size: 16px; }
+  .chartcard .cap { font-size: 13px; color: var(--muted); margin: 2px 0 14px; }
+  .chartcard .foot { font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+  .hchart { position: relative; }
+  .hc-grid { position: absolute; top: 0; bottom: 26px; left: 150px; right: 110px; pointer-events: none; }
+  .hc-gl { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--grid); }
+  .hc-gl.base { background: var(--axis); }
+  .hc-row { display: flex; align-items: center; height: 40px; position: relative; border-radius: 8px; outline: none; }
+  .hc-row:hover .hc-label, .hc-row:focus-visible .hc-label { color: var(--ink); }
+  .hc-row:focus-visible { box-shadow: inset 0 0 0 2px var(--ink); }
+  .hc-label { width: 150px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600; color: var(--ink-2); padding-right: 10px; }
+  .hc-plot { position: relative; flex: 1; height: 100%; margin-right: 110px; }
+  .hc-bar { position: absolute; left: 0; top: 50%; height: 20px; transform: translateY(-50%); background: var(--c); border-radius: 0 4px 4px 0;
+            width: 0; transition: width .75s cubic-bezier(.2, .7, .2, 1), filter .15s; min-width: 2px; }
+  .hc-track { position: absolute; left: 0; right: 0; top: 50%; height: 2px; transform: translateY(-50%); background: var(--surface-2); }
+  .hc-dot { position: absolute; top: 50%; left: 0; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: var(--c);
+            box-shadow: 0 0 0 2px var(--surface); transition: left .75s cubic-bezier(.2, .7, .2, 1), transform .15s; }
+  .hc-row:hover .hc-bar { filter: brightness(1.08) saturate(1.1); }
+  .hc-row:hover .hc-dot { transform: scale(1.25); }
+  .hc-val { position: absolute; top: 50%; transform: translateY(-50%); font-size: 12.5px; font-weight: 700; white-space: nowrap; color: var(--ink);
+            transition: left .75s cubic-bezier(.2, .7, .2, 1); font-variant-numeric: tabular-nums; }
+  .hc-axis { position: relative; height: 26px; margin: 0 110px 0 150px; border-top: 1px solid var(--axis); }
+  .hc-axis span { position: absolute; top: 5px; transform: translateX(-50%); font-size: 11.5px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .legend button { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 600; border: 1px solid var(--line); background: var(--surface);
+                   border-radius: 999px; padding: 4px 11px 4px 9px; cursor: pointer; color: var(--ink); transition: opacity .15s, border-color .15s; }
+  .legend button[aria-pressed="false"] { opacity: .45; }
+  .legend button[aria-pressed="false"] .key { background: var(--muted); }
+  .legend button:hover { border-color: var(--axis); }
+  #lineChart { position: relative; }
+  #lineChart svg { display: block; width: 100%; overflow: visible; }
+  #lineChart .ln { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; transition: opacity .2s; }
+  #lineChart .mk { stroke: var(--surface); stroke-width: 2; transition: opacity .2s; }
+  #lineChart .dim { opacity: .12; }
+  #lineChart text { fill: var(--muted); font-size: 11.5px; font-family: inherit; font-variant-numeric: tabular-nums; }
+  #lineChart .gl { stroke: var(--grid); stroke-width: 1; }
+  #lineChart .ax { stroke: var(--axis); stroke-width: 1; }
+  #lineChart .xh { stroke: var(--ink-2); stroke-width: 1; opacity: 0; transition: opacity .1s; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+  #tip { position: fixed; z-index: 2000; pointer-events: none; background: var(--tip); color: var(--tip-ink); border-radius: 10px; padding: 9px 12px;
+         font-size: 12.5px; box-shadow: 0 10px 30px rgba(0, 0, 0, .25); opacity: 0; transition: opacity .12s; max-width: 280px; }
+  #tip.on { opacity: 1; }
+  #tip .th { font-weight: 700; margin-bottom: 4px; opacity: .75; font-size: 12px; }
+  #tip .tr { display: flex; align-items: center; gap: 8px; line-height: 1.7; }
+  #tip .tr b { font-variant-numeric: tabular-nums; min-width: 70px; }
+  #tip .tr .key { width: 12px; height: 2px; }
+  #tip .tr span { opacity: .75; }
+  #tip .tn { opacity: .75; margin-top: 2px; }
+
+  .tablewrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 860px; }
+  th, td { text-align: right; padding: 10px 9px; border-bottom: 1px solid var(--line); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+  thead th { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 700; padding: 0; white-space: normal; vertical-align: bottom; }
+  thead th button { all: unset; cursor: pointer; display: flex; align-items: center; gap: 4px; justify-content: flex-end; text-align: right; padding: 12px 9px; width: 100%; box-sizing: border-box; }
+  thead th:first-child button, thead th:nth-child(2) button { justify-content: flex-start; }
+  thead th button:hover { color: var(--ink); }
+  thead th button:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
+  thead th[aria-sort] button { color: var(--ink); }
+  thead th .ar { opacity: 0; font-size: 10px; } thead th[aria-sort] .ar { opacity: 1; }
+  tbody tr { transition: background .15s; } tbody tr:hover { background: var(--hover); }
+  tbody td:first-child { font-weight: 700; } tbody td:first-child .key { margin-right: 8px; vertical-align: middle; }
+  tbody tr:last-child td { border-bottom: 0; }
+
+  /* ------------------------------------------------------------ animasi & unduhan */
+  .anim-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .anim { padding: 0; overflow: hidden; display: flex; flex-direction: column; }
+  .anim .art { height: 190px; background: #0a0c0f; position: relative; overflow: hidden; }
+  .anim .art svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .anim .body { padding: 20px 22px 22px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
+  .anim .body p { margin: 0; color: var(--ink-2); font-size: 14.5px; }
+  .anim .row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; padding-top: 6px; align-items: center; }
+  .anim .row .chip { box-shadow: none; }
+  .tree circle { fill: #2a2d33; stroke: #3a3e46; stroke-width: 1.5; animation: lit 4.8s infinite; }
+  .tree line { stroke: #2f333a; stroke-width: 1.5; }
+  @keyframes lit { 0%, 8% { fill: #2a2d33; } 14%, 70% { fill: #eda100; stroke: #ffd36b; } 80%, 100% { fill: #2a2d33; } }
+  .tree circle.goal { animation-name: goal; }
+  @keyframes goal { 0%, 60% { fill: #2a2d33; } 66%, 92% { fill: #3fd6a0; stroke: #a5f3d6; } 100% { fill: #2a2d33; } }
+  .downloads { display: flex; flex-wrap: wrap; gap: 8px; }
+  .downloads .chip { box-shadow: none; }
+  footer.site { margin-top: 96px; border-top: 1px solid var(--line); padding: 28px 0 40px; color: var(--muted); font-size: 13px; }
+  footer.site .wrap { display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between; }
+  footer.site a { color: var(--ink-2); }
+
+  @media (max-width: 1080px) {
+    .nav { display: none; }
+    .kpis { grid-template-columns: repeat(3, 1fr); }
+    .insights { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 900px) {
+    .explorer { grid-template-columns: 1fr; }
+    .algo-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+    .mapcard { min-height: 460px; }
+    .steps, .anim-grid, .grid2 { grid-template-columns: 1fr; }
+    .hero-art { width: 100%; right: 0; opacity: .5; }
+    .hero::after { background: linear-gradient(180deg, rgba(10, 12, 15, .55), rgba(10, 12, 15, .85)); }
+    .hero-stats { grid-template-columns: repeat(2, auto); }
+    .hero-cap { display: none; }
+  }
+  @media (max-width: 640px) {
+    .wrap { padding: 0 16px; }
+    .topbar .wrap { gap: 8px; }
+    .brand span { display: none; }
+    .seg button small { display: none; }
+    .seg button { padding: 6px 9px; }
+    .kpis, .insights { grid-template-columns: repeat(2, 1fr); }
+    .maphead p { display: none; }
+    .maphead { max-width: calc(100% - 24px); }
+    .maptools { top: 70px; }
+    .hc-label { width: 104px; font-size: 12.5px; }
+    .hc-grid { left: 104px; right: 84px; } .hc-plot { margin-right: 84px; } .hc-axis { margin: 0 84px 0 104px; }
+    .hero-inner { padding: 64px 0 48px; }
+    .stat .val { font-size: 24px; }
+    section.block { padding-top: 64px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+    .hero-art .draw { stroke-dashoffset: 0; }
+    .hero-art .van { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap">
+    <a class="brand" href="#top" aria-label="Rute MBG Surabaya, ke atas">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#0a0c0f"/>
+        <path d="M8 22c4-1 4-9 8-10s5 6 8 4" fill="none" stroke="#1baf7a" stroke-width="2.6" stroke-linecap="round"/>
+        <circle cx="8" cy="22" r="3" fill="#2a78d6"/><circle cx="24" cy="16" r="3" fill="#eb6834"/></svg>
+      <span>Rute MBG Surabaya</span>
+    </a>
+    <nav class="nav" aria-label="Bagian halaman">
+      <a href="#cara">Cara kerja</a><a href="#peta">Peta rute</a><a href="#banding">Perbandingan</a>
+      <a href="#skala">Skalabilitas</a><a href="#animasi">Animasi</a>
+    </nav>
+    <div class="grow"></div>
+    <div class="seg" id="instSeg" role="group" aria-label="Pilih instance"></div>
+    <button class="iconbtn" id="themeBtn" aria-label="Ganti tema terang/gelap" title="Ganti tema"></button>
+  </div>
+</header>
+
+<section class="hero" id="top">
+  <svg class="hero-art" id="heroArt" aria-hidden="true"></svg>
+  <div class="wrap">
+    <div class="hero-inner">
+      <span class="eyebrow"><i></i>Proyek ETS · Konsep Kecerdasan Artifisial</span>
+      <h1>Mengantar <span class="grad">Makan Bergizi Gratis</span> lewat rute paling efisien</h1>
+      <p class="lead">Granmax dari <b>SPPG</b> (dapur) mengantar makanan ke sekolah di Surabaya. Kami membandingkan
+        <b>tujuh algoritma pencarian</b> untuk menemukan urutan kunjungan dengan biaya bensin dan waktu tiba terbaik,
+        memakai jarak dan waktu tempuh jalan asli.</p>
+      <div class="ctas">
+        <a class="btn light" id="heroAnim" href="#animasi">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.8v10.4a.6.6 0 0 0 .9.5l8.3-5.2a.6.6 0 0 0 0-1L4.9 2.3a.6.6 0 0 0-.9.5z" fill="currentColor"/></svg>
+          Tonton animasi</a>
+        <a class="btn ghost" href="#peta">Jelajahi rute
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10m0 0l-4-4m4 4l4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      </div>
+      <div class="hero-stats" id="heroStats"></div>
+    </div>
+  </div>
+  <div class="hero-cap" id="heroCap"><i></i><span></span></div>
+</section>
+
+<main>
+  <section class="block" id="cara">
+    <div class="wrap">
+      <div class="kicker reveal">Cara kerja</div>
+      <h2 class="reveal">Tiga langkah dari dapur ke kelas</h2>
+      <p class="sub reveal">Masalahnya dimodelkan sebagai <b>Multi-Depot Vehicle Routing Problem</b> bi-objektif: meminimalkan biaya bensin
+        sekaligus rata-rata waktu tiba makanan, digabung menjadi satu skor <b>F = w·biaya + (1 − w)·waktu</b>.</p>
+      <div class="steps">
+        <article class="card step reveal">
+          <svg class="ill" viewBox="0 0 120 120" aria-hidden="true"><circle cx="70" cy="50" r="30" fill="var(--c1)" opacity=".08"/>
+            <rect x="62" y="42" width="16" height="16" rx="4" fill="var(--c1)"/><circle cx="40" cy="30" r="5" fill="none" stroke="var(--c1)" stroke-width="2.5"/>
+            <circle cx="98" cy="36" r="5" fill="none" stroke="var(--c1)" stroke-width="2.5"/><circle cx="88" cy="82" r="5" fill="none" stroke="var(--c1)" stroke-width="2.5"/>
+            <path d="M45 32l17 13M93 39l-15 8M85 78l-10-20" stroke="var(--c1)" stroke-width="1.5" stroke-dasharray="3 3"/></svg>
+          <div class="n">1</div>
+          <h3>Sekolah → SPPG terdekat</h3>
+          <p>Tiap sekolah dilayani dapur dengan jarak jalan terpendek (OSRM). Setelah itu, rute tiap SPPG bisa dicari terpisah.</p>
+        </article>
+        <article class="card step reveal">
+          <svg class="ill" viewBox="0 0 120 120" aria-hidden="true"><circle cx="70" cy="50" r="30" fill="var(--c6)" opacity=".08"/>
+            <circle cx="70" cy="22" r="6" fill="var(--c6)"/><circle cx="50" cy="50" r="6" fill="none" stroke="var(--c6)" stroke-width="2.5"/>
+            <circle cx="90" cy="50" r="6" fill="var(--c6)"/><circle cx="78" cy="80" r="6" fill="none" stroke="var(--c6)" stroke-width="2.5"/>
+            <circle cx="102" cy="80" r="6" fill="var(--c6)"/><path d="M66 27L54 45M74 27l12 18M87 56l-6 18M93 56l6 18" stroke="var(--c6)" stroke-width="2"/></svg>
+          <div class="n">2</div>
+          <h3>Cari urutan kunjungan</h3>
+          <p>Keadaan = sekolah tersisa, posisi, muatan, waktu. Aksi = antar ke sekolah atau pulang. Tujuh algoritma pencarian dibandingkan.</p>
+        </article>
+        <article class="card step reveal">
+          <svg class="ill" viewBox="0 0 120 120" aria-hidden="true"><circle cx="70" cy="50" r="30" fill="var(--c2)" opacity=".08"/>
+            <path d="M40 78c12-2 14-30 30-32s18 18 34 10" fill="none" stroke="var(--c2)" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="4 5"/>
+            <rect x="58" y="36" width="22" height="13" rx="3" fill="var(--c2)"/><circle cx="63" cy="51" r="3" fill="var(--c2)"/><circle cx="76" cy="51" r="3" fill="var(--c2)"/></svg>
+          <div class="n">3</div>
+          <h3>Granmax berangkat bersamaan</h3>
+          <p>Semua makanan selesai dimasak di t = 0. Tiap Granmax mengikuti rutenya di jalan asli, berhenti untuk drop di tiap sekolah.</p>
+        </article>
+      </div>
+      <div class="params reveal" id="params"></div>
+    </div>
+  </section>
+
+  <section class="block" id="peta">
+    <div class="wrap">
+      <div class="kicker reveal">Peta rute</div>
+      <h2 class="reveal" id="petaTitle">Jelajahi rute setiap algoritma</h2>
+      <p class="sub reveal">Pilih algoritma di kiri untuk menggambar rutenya di jalan asli. Arahkan kursor ke sebuah rute atau kartu Granmax untuk menyorotnya.
+        Warna garis = SPPG asal.</p>
+      <div class="insights" id="insights"></div>
+      <div class="explorer reveal">
+        <div class="algo-list" id="algoList" role="radiogroup" aria-label="Algoritma"></div>
+        <div class="card mapcard">
+          <div id="map" aria-label="Peta rute interaktif"></div>
+          <div class="maphead" id="mapHead"></div>
+          <div class="maptools">
+            <button class="chip" id="ghostBtn" aria-pressed="false" title="Tampilkan rute optimal A* (h2) sebagai bayangan abu-abu">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 11c3-1 3-6 6-7s4 4 6 3" fill="none" stroke="currentColor" stroke-width="3" opacity=".35" stroke-linecap="round"/></svg>
+              Bayangan optimal</button>
+            <button class="chip" id="replayBtn" title="Gambar ulang rute">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13 8a5 5 0 1 1-1.5-3.6M13 2.5v3h-3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Gambar ulang</button>
+            <button class="chip" id="fsBtn" title="Layar penuh">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span class="sr">Layar penuh</span></button>
+          </div>
+          <div class="maplegend" id="mapLegend"></div>
+        </div>
+      </div>
+      <div class="kpis" id="kpis"></div>
+      <details class="card vehs" id="vehs" open>
+        <summary><svg class="chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span id="vehTitle">Rute tiap Granmax</span><span class="hint">klik kartu untuk zoom ke rutenya</span></summary>
+        <div class="veh-grid" id="vehGrid"></div>
+      </details>
+    </div>
+  </section>
+
+  <section class="block" id="banding">
+    <div class="wrap">
+      <div class="kicker reveal">Perbandingan</div>
+      <h2 class="reveal">Mana yang paling efisien?</h2>
+      <p class="sub reveal">Kualitas rute (biaya, waktu tiba, selisih dari optimum) dan biaya pencarian (node diekspansi, waktu komputasi), dijumlahkan dari semua SPPG di instance terpilih.</p>
+      <div class="card chartcard reveal">
+        <div class="toolbar"><span class="lbl">Metrik</span><div class="seg" id="cmpSeg" role="group" aria-label="Metrik perbandingan"></div></div>
+        <div class="ttl" id="cmpTitle"></div>
+        <div class="cap" id="cmpCap"></div>
+        <div class="hchart" id="cmpChart"></div>
+        <div class="foot" id="cmpFoot"></div>
+      </div>
+      <div class="card reveal" style="margin-top:16px">
+        <div class="chartcard" style="padding-bottom:4px"><div class="ttl">Tabel lengkap</div>
+          <div class="cap">Klik judul kolom untuk mengurutkan. Selisih F = rata-rata selisih skor objektif terhadap UCS per SPPG.</div></div>
+        <div class="tablewrap"><table id="cmpTable"></table></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="skala">
+    <div class="wrap">
+      <div class="kicker reveal">Skalabilitas</div>
+      <h2 class="reveal">Seberapa cepat pencarian membengkak?</h2>
+      <p class="sub reveal" id="skalaSub"></p>
+      <div class="card chartcard reveal">
+        <div class="toolbar"><span class="lbl">Metrik</span><div class="seg" id="lineSeg" role="group" aria-label="Metrik skalabilitas"></div></div>
+        <div class="legend" id="lineLegend" aria-label="Tampilkan/sembunyikan algoritma"></div>
+        <div id="lineChart"></div>
+        <div class="foot" id="lineFoot"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="animasi">
+    <div class="wrap">
+      <div class="kicker reveal">Animasi</div>
+      <h2 class="reveal">Lihat algoritmanya bekerja</h2>
+      <p class="sub reveal" id="animSub"></p>
+      <div class="anim-grid">
+        <article class="card anim reveal">
+          <div class="art"><svg viewBox="0 0 400 190" class="tree" aria-hidden="true" id="treeArt"></svg></div>
+          <div class="body">
+            <h3>Tahap 1 · Pencarian rute</h3>
+            <p>Langkah demi langkah algoritma mengekspansi node, dengan baris pseudocode yang sedang berjalan di-highlight dan rute sementara di peta.</p>
+            <div class="row" id="animAlgos"></div>
+          </div>
+        </article>
+        <article class="card anim reveal">
+          <div class="art"><svg viewBox="0 0 400 190" aria-hidden="true" id="vanArt"></svg></div>
+          <div class="body">
+            <h3>Tahap 2 · Pengiriman</h3>
+            <p>Granmax bergerak di jalan asli dengan jam berjalan. Titik sekolah terisi warna saat makanan tiba; log mencatat setiap kedatangan.</p>
+            <div class="row"><a class="btn solid" id="animDeliver" href="#">Putar simulasi pengiriman
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10m0 0L9 4m4 4l-4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></a></div>
+          </div>
+        </article>
+      </div>
+      <div class="card chartcard reveal" style="margin-top:16px">
+        <div class="ttl">Berkas</div>
+        <div class="cap">Rute dalam teks, peta Folium, gambar statis rute tiap algoritma, dan grafik untuk laporan.</div>
+        <div class="downloads" id="downloads"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site">
+  <div class="wrap">
+    <span>Proyek ETS Konsep Kecerdasan Artifisial · <a href="https://github.com/Mitschess/kka-2026">kode sumber</a></span>
+    <span>Data sekolah &amp; jalan © kontributor OpenStreetMap · routing OSRM · tile peta © Esri</span>
+  </div>
+</footer>
+<div id="tip" role="tooltip"></div>
+
+<script>
+const DATA = /*__DATA__*/null;
+
+// ================================================================ utilitas
+const $ = (s, root = document) => root.querySelector(s);
+const REDUCE = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const SVGNS = "http://www.w3.org/2000/svg";
+function h(tag, props = {}, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (v == null || v === false) continue;
+    if (k === "class") e.className = v;
+    else if (k === "style") e.style.cssText = v;
+    else if (k === "text") e.textContent = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v === true ? "" : v);
+  }
+  for (const c of kids.flat()) if (c != null && c !== false) e.append(c.nodeType ? c : document.createTextNode(String(c)));
+  return e;
+}
+function sv(tag, attrs = {}, parent) {
+  const e = document.createElementNS(SVGNS, tag);
+  for (const [k, v] of Object.entries(attrs)) if (v != null) e.setAttribute(k, v);
+  if (parent) parent.append(e);
+  return e;
+}
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("mbg-" + k); return v === null ? d : v; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem("mbg-" + k, v); } catch (e) { /* abaikan */ } },
+};
+const NF = {};
+const nf = (d) => (NF[d] ??= new Intl.NumberFormat("id-ID", { minimumFractionDigits: d, maximumFractionDigits: d }));
+const num = (v, d = 0) => nf(d).format(v);
+const rp = (v) => "Rp" + num(Math.round(v));
+const CMP = new Intl.NumberFormat("id-ID", { notation: "compact", maximumFractionDigits: 1 });
+const compact = (v) => CMP.format(v);
+const dur = (s) => (s < 1 ? num(s * 1000, s < 0.01 ? 1 : 0) + " ms" : num(s, s < 10 ? 2 : 1) + " dtk");
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const cvar = (a) => `var(--c${a.slot})`;
+const gapFmt = (v) => (v < 0.005 ? "0%" : "+" + num(v, v < 1 ? 2 : 1) + "%");
+const isDark = () => {
+  const t = document.documentElement.dataset.theme;
+  return t ? t === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+};
+const easeOut = (t) => 1 - Math.pow(1 - t, 3);
+function tween(el, to, fmt, ms = 700) {
+  const from = +(el.dataset.v ?? 0);
+  el.dataset.v = to;
+  if (REDUCE || from === to) { el.textContent = fmt(to); return; }
+  const t0 = performance.now();
+  const step = (now) => {
+    const u = Math.min(1, (now - t0) / ms);
+    el.textContent = fmt(from + (to - from) * easeOut(u));
+    if (u < 1 && +el.dataset.v === to) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+// tooltip bersama: isi dibangun dengan textContent (nama sekolah/algoritma = data)
+const tip = $("#tip");
+function showTip(ev, build) {
+  tip.textContent = "";
+  build(tip);
+  tip.classList.add("on");
+  moveTip(ev);
+}
+function moveTip(ev) {
+  const pad = 14, r = tip.getBoundingClientRect();
+  let x = ev.clientX + pad, y = ev.clientY + pad;
+  if (x + r.width > innerWidth - 8) x = ev.clientX - r.width - pad;
+  if (y + r.height > innerHeight - 8) y = ev.clientY - r.height - pad;
+  tip.style.left = Math.max(8, x) + "px"; tip.style.top = Math.max(8, y) + "px";
+}
+const hideTip = () => tip.classList.remove("on");
+function tipRow(parent, color, value, label) {
+  parent.append(h("div", { class: "tr" }, h("i", { class: "key", style: `--c:${color}` }), h("b", { text: value }), h("span", { text: label })));
+}
+
+// ================================================================ keadaan
+const INST = Object.fromEntries(DATA.instances.map((i) => [i.name, i]));
+let cur = INST[store.get("inst", DATA.default_instance)] || INST[DATA.default_instance];
+let algoKey = store.get("algo", DATA.reference);
+let ghostOn = store.get("ghost", "0") === "1";
+let cmpMetric = "expanded", lineMetric = "expanded";
+const lineHidden = new Set();
+const algoOf = (key, inst = cur) => inst.algos.find((a) => a.key === key);
+const ref = (inst = cur) => algoOf(DATA.reference, inst);
+const depotColor = (d) => DATA.depot_colors[d % DATA.depot_colors.length];
+const shortId = (id) => id.replace("SPPG-", "");
+
+// ================================================================ tema
+const SUN = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+const MOON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';
+function themeIcon() { $("#themeBtn").innerHTML = isDark() ? SUN : MOON; }
+$("#themeBtn").onclick = () => {
+  const next = isDark() ? "light" : "dark";
+  document.documentElement.dataset.theme = next;
+  store.set("theme", next);
+  onTheme();
+};
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", onTheme);
+function onTheme() { themeIcon(); setTiles(); drawRoutes(false); renderLine(false); }
+
+// ================================================================ hero
+function project(nodes, W, H, pad) {
+  const lat0 = nodes.reduce((s, n) => s + n.lat, 0) / nodes.length;
+  const k = Math.cos(lat0 * Math.PI / 180);
+  const xs = nodes.map((n) => n.lon * k), ys = nodes.map((n) => -n.lat);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const s = Math.min((W - 2 * pad) / (x1 - x0), (H - 2 * pad) / (y1 - y0));
+  const ox = (W - s * (x1 - x0)) / 2, oy = (H - s * (y1 - y0)) / 2;
+  return ([lat, lon]) => [ox + (lon * k - x0) * s, oy + (-lat - y0) * s];
+}
+function vehPoints(inst, v) {
+  const idx = [v.d, ...v.stops.map((st) => inst.m + st[0]), v.d], pts = [];
+  for (let i = 0; i + 1 < idx.length; i++) {
+    const g = inst.legs[idx[i] + "-" + idx[i + 1]] ||
+      [[inst.nodes[idx[i]].lat, inst.nodes[idx[i]].lon], [inst.nodes[idx[i + 1]].lat, inst.nodes[idx[i + 1]].lon]];
+    pts.push(...(i ? g.slice(1) : g));
+  }
+  return pts;
+}
+function buildHero() {
+  const inst = INST[DATA.hero_instance], best = ref(inst);
+  const W = 1000, H = 760, P = project(inst.nodes, W, H, 70);
+  const svg = $("#heroArt");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+  const defs = sv("defs", {}, svg);
+  const f = sv("filter", { id: "blur", x: "-20%", y: "-20%", width: "140%", height: "140%" }, defs);
+  sv("feGaussianBlur", { stdDeviation: "5" }, f);
+  const gGlow = sv("g", { filter: "url(#blur)" }, svg), gLine = sv("g", {}, svg), gDot = sv("g", {}, svg);
+  best.vehicles.forEach((v, i) => {
+    const d = "M" + vehPoints(inst, v).map((p) => P(p).map((c) => c.toFixed(1)).join(" ")).join("L");
+    const col = depotColor(v.d), delay = (0.15 + i * 0.09).toFixed(2) + "s";
+    sv("path", { d, class: "glow draw", stroke: col, pathLength: 1, style: `animation-delay:${delay}` }, gGlow);
+    sv("path", { d, id: "hr" + i, class: "rt draw", stroke: col, pathLength: 1, style: `animation-delay:${delay}` }, gLine);
+    const van = sv("circle", { r: 4.5, fill: "#fff", stroke: col, "stroke-width": 2.5, class: "van", opacity: 0 }, gDot);
+    const begin = (2.6 + i * 0.09).toFixed(2) + "s", dur2 = (7 + (i % 5) * 1.3).toFixed(1) + "s";
+    sv("set", { attributeName: "opacity", to: 1, begin }, van);
+    const mo = sv("animateMotion", { dur: dur2, begin, repeatCount: "indefinite", rotate: "auto" }, van);
+    sv("mpath", { href: "#hr" + i }, mo);
+  });
+  for (let s = 0; s < inst.n; s++) {
+    const [x, y] = P([inst.nodes[inst.m + s].lat, inst.nodes[inst.m + s].lon]);
+    sv("circle", { cx: x.toFixed(1), cy: y.toFixed(1), r: 3.6, class: "school", style: `animation-delay:${(0.6 + s * 0.035).toFixed(2)}s` }, gDot);
+  }
+  for (let d = 0; d < inst.m; d++) {
+    const [x, y] = P([inst.nodes[d].lat, inst.nodes[d].lon]);
+    sv("circle", { cx: x.toFixed(1), cy: y.toFixed(1), r: 7, fill: depotColor(d), class: "depot-pulse", style: `animation-delay:${d * 0.4}s` }, gDot);
+    sv("rect", { x: (x - 8).toFixed(1), y: (y - 8).toFixed(1), width: 16, height: 16, rx: 4, fill: depotColor(d), stroke: "#fff", "stroke-width": 2 }, gDot);
+  }
+  if (REDUCE) svg.pauseAnimations?.();
+  $("#heroCap span").textContent = `Rute optimal ${best.label} · ${inst.title} · ${best.vehicles.length} Granmax di jalan asli`;
+  const stats = [
+    [inst.n, (v) => num(Math.round(v)), "sekolah"],
+    [inst.m, (v) => num(Math.round(v)), "SPPG (dapur)"],
+    [best.cost_rp, (v) => rp(v), "bensin sekali antar"],
+    [best.mean_arrival_min, (v) => num(v, 1) + " mnt", "rata-rata makanan tiba"],
+  ];
+  const box = $("#heroStats");
+  for (const [v, fmt, lbl] of stats) {
+    const b = h("b", { text: fmt(0) });
+    box.append(h("div", {}, b, h("span", { text: lbl })));
+    setTimeout(() => tween(b, v, fmt, 1400), 350);
+  }
+  $("#heroAnim").href = `${inst.name}/animasi.html#stage=1&algoRoute=${encodeURIComponent(DATA.reference)}`;
+}
+
+// ================================================================ parameter model
+function buildParams() {
+  const p = DATA.params;
+  const items = [["Maks", `${p.Q} sekolah`, "per Granmax"], ["Drop", `${p.service} menit`, "per sekolah"],
+    ["Tiba ≤", `${p.max_time} menit`, "setelah masak"], ["", `${num(p.km_per_liter)} km/L`, `· Rp${num(p.fuel_price)}/L`],
+    ["Bobot", `w = ${num(p.w, 1)}`, "biaya vs waktu"], ["Jarak & waktu", "OSRM", "jalan asli"]];
+  $("#params").replaceChildren(...items.map(([a, b, c]) => h("span", { class: "pill" }, a, h("b", { text: b }), c)));
+}
+
+// ================================================================ pilih instance
+function buildInstSeg() {
+  const seg = $("#instSeg");
+  seg.replaceChildren(...DATA.instances.map((inst) => h("button", {
+    "aria-pressed": String(inst === cur), "data-name": inst.name,
+    onclick: () => { if (inst !== cur) { cur = inst; store.set("inst", inst.name); renderInstance(true); } },
+  }, inst.short, h("small", { text: `${inst.n} sekolah` }))));
+}
+
+function renderInstance(fit) {
+  [...$("#instSeg").children].forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.name === cur.name)));
+  if (!algoOf(algoKey)) algoKey = DATA.reference;
+  $("#petaTitle").textContent = `Jelajahi rute setiap algoritma di ${cur.title}`;
+  renderInsights();
+  renderAlgoList();
+  drawStatic(fit);
+  selectAlgo(algoKey, false);
+  renderCompare();
+  renderTable();
+  renderAnim();
+}
+
+// ================================================================ insight
+function renderInsights() {
+  const best = ref(), ucs = algoOf("UCS"), gb = algoOf("GBFS"), bfs = algoOf("BFS");
+  const ratio = ucs.search.expanded / best.search.expanded;
+  const tiles = [
+    { lbl: `Node diekspansi ${best.label} vs UCS`, val: [ratio, (v) => num(v, 1) + "×"], small: ratio >= 1 ? "lebih sedikit" : "lebih banyak",
+      desc: `${num(best.search.expanded)} vs ${num(ucs.search.expanded)} node, keduanya optimal.` },
+    { lbl: "Rata-rata makanan tiba", val: [best.mean_arrival_min, (v) => num(v, 1)], small: "menit",
+      desc: `Rute optimal. Greedy best-first ${num(gb.mean_arrival_min, 1)} mnt, BFS ${num(bfs.mean_arrival_min, 1)} mnt.` },
+    { lbl: "Sekolah terakhir tiba", val: [best.makespan_min, (v) => num(v, 1)], small: "menit",
+      desc: `Jauh di bawah batas ${DATA.params.max_time} menit setelah makanan selesai dimasak.` },
+    { lbl: "Biaya bensin optimal", val: [best.cost_rp, rp], small: "",
+      desc: `${num(best.km, 1)} km · ${best.n_vehicles} Granmax dari ${cur.m} SPPG.` },
+  ];
+  const box = $("#insights");
+  if (!box.children.length) box.append(...tiles.map(() => h("div", { class: "card stat reveal" },
+    h("div", { class: "lbl" }), h("div", { class: "val" }, h("span"), " ", h("small")), h("div", { class: "desc" }))));
+  tiles.forEach((t, i) => {
+    const c = box.children[i];
+    c.querySelector(".lbl").textContent = t.lbl;
+    tween(c.querySelector(".val span"), t.val[0], t.val[1], 900);
+    c.querySelector(".val small").textContent = t.small;
+    c.querySelector(".desc").textContent = t.desc;
+  });
+  observeReveal(box);
+}
+
+// ================================================================ daftar algoritma
+function badge(a) {
+  const [cls, icon, text] = { optimal: ["good", "✓", "Optimal"], limit: ["warn", "!", "Batas node"], suboptimal: ["bad", "×", "Tidak optimal"] }[a.status];
+  return h("span", { class: "badge " + cls }, h("span", { class: "bi", "aria-hidden": "true", text: icon }), text);
+}
+function renderAlgoList() {
+  const list = $("#algoList");
+  list.replaceChildren(...cur.algos.map((a) => h("button", {
+    class: "algo", role: "radio", "aria-checked": "false", "data-key": a.key, style: `--c:${cvar(a)}`,
+    onclick: () => selectAlgo(a.key, true),
+  },
+    h("div", { class: "top" }, h("i", { class: "key" }), h("span", { class: "name", text: a.label }), badge(a)),
+    h("div", { class: "meta" },
+      h("span", {}, h("b", { text: rp(a.cost_rp) })), h("span", {}, h("b", { text: num(a.mean_arrival_min, 1) }), " mnt"),
+      h("span", {}, h("b", { text: a.n_vehicles }), " Granmax")),
+    a.served < cur.n ? h("div", { class: "warn", text: `Hanya ${a.served}/${cur.n} sekolah: ${a.note}` }) :
+      a.note ? h("div", { class: "warn", text: a.note }) : null)));
+  list.onkeydown = (e) => {
+    const i = cur.algos.findIndex((a) => a.key === algoKey);
+    const d = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[e.key];
+    if (!d) return;
+    e.preventDefault();
+    const nx = cur.algos[(i + d + cur.algos.length) % cur.algos.length];
+    selectAlgo(nx.key, true);
+    list.querySelector(`[data-key="${CSS.escape(nx.key)}"]`).focus();
+  };
+}
+function selectAlgo(key, user) {
+  algoKey = key;
+  if (user) store.set("algo", key);
+  const a = algoOf(key);
+  [...$("#algoList").children].forEach((b) => {
+    const on = b.dataset.key === key;
+    b.setAttribute("aria-checked", String(on));
+    b.tabIndex = on ? 0 : -1;
+  });
+  $("#mapHead").replaceChildren(
+    h("div", { class: "t" }, h("i", { class: "key", style: `--c:${cvar(a)}` }), a.label, badge(a)),
+    h("p", { text: a.desc }));
+  drawRoutes(true);
+  renderKpis();
+  renderVehicles();
+}
+
+// ================================================================ peta
+let legendBase = [];
+let map, tiles = [], ghostLayer, routeLayer, flowLayer, schoolLayer, depotLayer, polys = [], pending = [];
+function initMap() {
+  map = L.map("map", { zoomControl: false, scrollWheelZoom: false, zoomSnap: 0.25, attributionControl: true });
+  L.control.zoom({ position: "bottomright" }).addTo(map);
+  map.on("click", () => map.scrollWheelZoom.enable());
+  map.on("mouseout", () => map.scrollWheelZoom.disable());
+  map.on("zoomstart", () => { pending.forEach((f) => f()); pending = []; });
+  ghostLayer = L.layerGroup().addTo(map);
+  routeLayer = L.layerGroup().addTo(map);
+  flowLayer = L.layerGroup().addTo(map);
+  schoolLayer = L.layerGroup().addTo(map);
+  depotLayer = L.layerGroup().addTo(map);
+  setTiles();
+  $("#ghostBtn").setAttribute("aria-pressed", String(ghostOn));
+  $("#ghostBtn").onclick = () => {
+    ghostOn = !ghostOn;
+    store.set("ghost", ghostOn ? "1" : "0");
+    $("#ghostBtn").setAttribute("aria-pressed", String(ghostOn));
+    drawRoutes(false);
+  };
+  $("#replayBtn").onclick = () => drawRoutes(true);
+  const card = $(".mapcard");
+  if (!document.fullscreenEnabled) $("#fsBtn").hidden = true;
+  $("#fsBtn").onclick = () => (document.fullscreenElement ? document.exitFullscreen() : card.requestFullscreen());
+  document.addEventListener("fullscreenchange", () => setTimeout(() => map.invalidateSize(), 60));
+}
+function setTiles() {
+  if (!map) return;
+  tiles.forEach((t) => map.removeLayer(t));
+  const v = isDark() ? "Dark" : "Light", url = (x) => `https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_${v}_Gray_${x}/MapServer/tile/{z}/{y}/{x}`;
+  tiles = [L.tileLayer(url("Base"), { maxNativeZoom: 16, maxZoom: 19, attribution: "Tiles &copy; Esri" }),
+    L.tileLayer(url("Reference"), { maxNativeZoom: 16, maxZoom: 19, opacity: 0.85 })];
+  tiles.forEach((t) => t.addTo(map).bringToBack());
+}
+function drawStatic(fit) {
+  depotLayer.clearLayers();
+  for (let d = 0; d < cur.m; d++) {
+    const n = cur.nodes[d];
+    L.marker([n.lat, n.lon], { icon: L.divIcon({ className: "", html: `<div class="depot-pin" style="background:${depotColor(d)}">${esc(shortId(n.id))}</div>`,
+      iconSize: [40, 24], iconAnchor: [20, 12] }), zIndexOffset: 1000, keyboard: false })
+      .bindTooltip(`<b>${esc(n.id)}</b><br>${esc(n.name)}`, { direction: "top", offset: [0, -10] }).addTo(depotLayer);
+  }
+  legendBase = cur.nodes.slice(0, cur.m).map((n, d) => h("span", {}, h("i", { class: "key", style: `--c:${depotColor(d)}` }), shortId(n.id)));
+  const bounds = L.latLngBounds(cur.nodes.map((n) => [n.lat, n.lon])).pad(0.06);
+  const pad = { paddingTopLeft: [0, innerWidth > 640 ? 110 : 70], paddingBottomRight: [0, 40] };
+  if (fit) map.flyToBounds(bounds, { ...pad, duration: REDUCE ? 0 : 0.9 });
+  else map.fitBounds(bounds, pad);
+}
+function drawRoutes(animate) {
+  if (!map) return;
+  pending.forEach((f) => f()); pending = [];
+  ghostLayer.clearLayers(); routeLayer.clearLayers(); flowLayer.clearLayers(); schoolLayer.clearLayers();
+  const a = algoOf(algoKey), best = ref();
+  if (ghostOn && a.key !== best.key) {
+    for (const v of best.vehicles) {
+      L.polyline(vehPoints(cur, v), { color: isDark() ? "#ecebe6" : "#3d3c39", weight: 4, opacity: isDark() ? 0.6 : 0.5,
+        dashArray: "1 8", lineCap: "round", interactive: false }).addTo(ghostLayer);
+    }
+  }
+  polys = a.vehicles.map((v, i) => {
+    const pl = L.polyline(vehPoints(cur, v), { color: depotColor(v.d), weight: 4.2, opacity: 0.92, lineCap: "round", lineJoin: "round" }).addTo(routeLayer);
+    pl.bindTooltip(`<b>Granmax ${i + 1}</b> · ${esc(cur.nodes[v.d].id)}<br><span class="tm">${v.stops.length} sekolah · ${num(v.km, 1)} km · ${rp(v.cost)}</span>`, { sticky: true });
+    pl.on("mouseover", () => focusVeh(i)); pl.on("mouseout", () => focusVeh(null));
+    if (animate && !REDUCE) drawIn(pl, i);
+    return pl;
+  });
+  const owner = new Map();
+  a.vehicles.forEach((v, i) => v.stops.forEach(([s, t], k) => owner.set(s, { i, d: v.d, k: k + 1, t })));
+  $("#mapLegend").replaceChildren(...legendBase, ...[
+    ghostOn && a.key !== best.key && h("span", {}, h("i", { class: "key dots" }), `${best.label} (optimal)`),
+    owner.size < cur.n && h("span", {}, h("i", { class: "key ring" }), "tidak terlayani")].filter(Boolean));
+  const fill = isDark() ? "#171716" : "#ffffff";
+  for (let s = 0; s < cur.n; s++) {
+    const n = cur.nodes[cur.m + s], o = owner.get(s);
+    L.circleMarker([n.lat, n.lon], { radius: o ? 6 : 5.5, weight: 2.5, color: o ? depotColor(o.d) : "#9a9a96", fillColor: fill, fillOpacity: 1, dashArray: o ? null : "2 3" })
+      .bindTooltip(o ? `<b>${esc(n.name)}</b><br><span class="tm">Granmax ${o.i + 1} · urutan ${o.k} · tiba ${num(o.t, 1)} mnt</span>`
+        : `<b>${esc(n.name)}</b><br><span class="tm">tidak terlayani (pencarian tidak selesai)</span>`, { direction: "top", offset: [0, -6] })
+      .addTo(schoolLayer);
+  }
+}
+function drawIn(pl, i) {
+  const p = pl._path;
+  if (!p) return;
+  const len = p.getTotalLength();
+  p.style.strokeDasharray = `${len} ${len}`;
+  p.style.strokeDashoffset = String(len);
+  p.getBoundingClientRect();
+  p.style.transition = `stroke-dashoffset ${Math.min(2000, 700 + len * 1.4)}ms cubic-bezier(.45,0,.2,1) ${i * 60}ms`;
+  p.style.strokeDashoffset = "0";
+  const done = () => { p.style.transition = ""; p.style.strokeDasharray = ""; p.style.strokeDashoffset = ""; };
+  p.addEventListener("transitionend", done, { once: true });
+  pending.push(done);
+}
+function focusVeh(i) {
+  polys.forEach((pl, j) => pl.setStyle({ opacity: i === null || i === j ? 0.92 : 0.14, weight: i === j ? 6.5 : 4.2 }));
+  flowLayer.clearLayers();
+  if (i !== null && polys[i]) {
+    L.polyline(polys[i].getLatLngs(), { color: "#ffffff", weight: 2.2, opacity: 0.95, dashArray: "2 10", className: "flow", interactive: false }).addTo(flowLayer);
+    polys[i].bringToFront();
+  }
+  document.querySelectorAll(".veh").forEach((c, j) => c.classList.toggle("hot", j === i));
+}
+
+// ================================================================ KPI & kartu Granmax
+function renderKpis() {
+  const a = algoOf(algoKey), b = ref();
+  const rel = (x, y) => (y ? (x - y) / y * 100 : 0);
+  const vs = (d, unit = "%", digits = 1) => (Math.abs(d) < 0.05 ? `sama dengan ${b.label}` : `${d > 0 ? "▲" : "▼"} ${num(Math.abs(d), digits)}${unit} vs ${b.label}`);
+  const gap = a.search.gap_mean_pct;
+  const tiles = [
+    ["Selisih skor F", gap, gapFmt, a.status === "optimal" ? "rute optimal" : a.status === "limit" ? "terhenti di batas node" : "rata-rata per SPPG vs optimum"],
+    ["Biaya bensin", a.cost_rp, rp, vs(rel(a.cost_rp, b.cost_rp))],
+    ["Jarak tempuh", a.km, (v) => num(v, 1) + " km", vs(rel(a.km, b.km))],
+    ["Rata-rata tiba", a.mean_arrival_min, (v) => num(v, 1) + " mnt", vs(a.mean_arrival_min - b.mean_arrival_min, " mnt")],
+    ["Granmax dipakai", a.n_vehicles, (v) => num(Math.round(v)), vs(a.n_vehicles - b.n_vehicles, "", 0)],
+    ["Sekolah terlayani", a.served, (v) => `${Math.round(v)}/${cur.n}`, null],
+  ];
+  const box = $("#kpis");
+  if (!box.children.length) box.append(...tiles.map(() => h("div", { class: "card kpi" }, h("div", { class: "lbl" }), h("div", { class: "val" }), h("div", { class: "dl" }))));
+  tiles.forEach(([lbl, v, fmt, dl], i) => {
+    const c = box.children[i];
+    c.querySelector(".lbl").textContent = lbl;
+    tween(c.querySelector(".val"), v, fmt);
+    c.querySelector(".dl").textContent = dl ?? "";
+    if (dl === null) {   // sekolah terlayani: meter, bukan teks selisih
+      const bar = (c.querySelector(".meter") || c.appendChild(h("div", { class: "meter" }, h("i")))).firstChild;
+      bar.classList.toggle("warn", a.served < cur.n);
+      requestAnimationFrame(() => (bar.style.width = (a.served / cur.n * 100) + "%"));
+    }
+  });
+}
+function renderVehicles() {
+  const a = algoOf(algoKey);
+  $("#vehTitle").textContent = `Rute tiap Granmax · ${a.label} (${a.vehicles.length})`;
+  $("#vehGrid").replaceChildren(...a.vehicles.map((v, i) => {
+    const dep = cur.nodes[v.d];
+    return h("div", { class: "veh", tabindex: "0", style: `--c:${depotColor(v.d)}`,
+      onmouseenter: () => focusVeh(i), onmouseleave: () => focusVeh(null), onfocus: () => focusVeh(i), onblur: () => focusVeh(null),
+      onclick: () => polys[i] && map.flyToBounds(polys[i].getBounds().pad(0.35), { duration: REDUCE ? 0 : 0.7 }),
+      onkeydown: (e) => { if (e.key === "Enter") e.currentTarget.click(); } },
+    h("div", { class: "vh" }, `Granmax ${i + 1}`, h("span", { class: "dp", text: shortId(dep.id) }),
+      h("span", { class: "km", text: `${num(v.km, 1)} km · ${rp(v.cost)}` })),
+    h("ol", {},
+      ...v.stops.map(([s, t]) => h("li", {}, h("span", { text: cur.nodes[cur.m + s].name }), h("span", { class: "tm", text: `${num(t, 1)} mnt` }))),
+      h("li", {}, h("span", { text: `kembali ke ${dep.id}` }), h("span", { class: "tm", text: "" }))));
+  }));
+}
+
+// ================================================================ grafik perbandingan
+const METRICS = {
+  cost: { tab: "Biaya", title: "Biaya bensin", cap: "Total biaya bensin semua Granmax untuk sekali antar (Rp). Lebih kecil lebih baik.",
+    get: (a) => a.cost_rp, fmt: rp, axis: (v) => compact(v), log: false, partial: true },
+  arrival: { tab: "Waktu tiba", title: "Rata-rata waktu tiba makanan", cap: "Rata-rata menit sejak berangkat sampai makanan tiba di sekolah. Lebih kecil lebih baik.",
+    get: (a) => a.mean_arrival_min, fmt: (v) => num(v, 1) + " mnt", axis: (v) => num(v), log: false },
+  gap: { tab: "Selisih F", title: "Selisih skor objektif F dari optimum", cap: "Rata-rata per SPPG, terhadap biaya UCS (optimal). 0% = rute optimal.",
+    get: (a) => a.search.gap_mean_pct, fmt: gapFmt, axis: (v) => num(v) + "%", log: false },
+  expanded: { tab: "Node diekspansi", title: "Node diekspansi", cap: "Total node yang dikeluarkan dari frontier, semua SPPG. Skala log: tiap garis = 10× lipat.",
+    get: (a) => a.search.expanded, fmt: (v) => num(v), axis: compact, log: true },
+  stored: { tab: "Memori", title: "Node tersimpan maksimum", cap: "Jumlah node terbesar yang disimpan sekaligus (frontier + reached), SPPG terberat. Skala log.",
+    get: (a) => a.search.max_stored, fmt: (v) => num(v), axis: compact, log: true },
+  runtime: { tab: "Waktu komputasi", title: "Waktu komputasi", cap: "Total waktu pencarian semua SPPG (Python, satu inti). Skala log.",
+    get: (a) => a.search.runtime_s, fmt: dur, axis: dur, log: true },
+};
+function niceStep(span, n) {
+  const raw = span / n, p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p;
+  return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p;
+}
+function scaleFor(vals, log) {
+  if (log) {
+    const pos = vals.filter((v) => v > 0);
+    const lo = Math.floor(Math.log10(Math.min(...pos))), hi = Math.ceil(Math.log10(Math.max(...pos)));
+    const ticks = []; for (let e = lo; e <= hi; e++) ticks.push(Math.pow(10, e));
+    return { pos: (v) => (Math.log10(Math.max(v, Math.pow(10, lo))) - lo) / (hi - lo || 1) * 100, ticks };
+  }
+  const mx = Math.max(...vals) || 1, st = niceStep(mx, 4), top = Math.ceil(mx / st) * st, ticks = [];
+  for (let t = 0; t <= top + 1e-9; t += st) ticks.push(t);
+  return { pos: (v) => v / top * 100, ticks };
+}
+function buildCmpSeg() {
+  $("#cmpSeg").replaceChildren(...Object.entries(METRICS).map(([k, m]) => h("button", { "aria-pressed": String(k === cmpMetric), "data-k": k,
+    onclick: () => { cmpMetric = k; [...$("#cmpSeg").children].forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.k === k))); renderCompare(); } }, m.tab)));
+}
+function renderCompare() {
+  const M = METRICS[cmpMetric], algos = cur.algos, vals = algos.map(M.get), sc = scaleFor(vals, M.log);
+  $("#cmpTitle").textContent = `${M.title} · ${cur.title}`;
+  $("#cmpCap").textContent = M.cap;
+  const box = $("#cmpChart");
+  const grid = h("div", { class: "hc-grid" }, ...sc.ticks.map((t, i) => h("i", { class: "hc-gl" + (i === 0 && !M.log ? " base" : ""), style: `left:${sc.pos(t)}%` })));
+  const partial = algos.filter((a) => a.served < cur.n);
+  const rows = algos.map((a, i) => {
+    const v = vals[i], x = sc.pos(v), star = M.partial && a.served < cur.n ? " *" : "";
+    const mark = M.log ? [h("i", { class: "hc-track" }), h("i", { class: "hc-dot", style: `--c:${cvar(a)}` })]
+      : [h("i", { class: "hc-bar", style: `--c:${cvar(a)}` })];
+    const val = h("span", { class: "hc-val", text: M.fmt(v) + star });
+    const row = h("div", { class: "hc-row", tabindex: "0", "aria-label": `${a.label}: ${M.fmt(v)}` },
+      h("div", { class: "hc-label" }, h("i", { class: "key", style: `--c:${cvar(a)}` }), a.label),
+      h("div", { class: "hc-plot" }, ...mark, val));
+    const show = (ev) => showTip(ev, (t) => {
+      t.append(h("div", { class: "th", text: M.title }));
+      tipRow(t, cvar(a), M.fmt(v), a.label);
+      t.append(h("div", { class: "tn", text: a.status === "optimal" ? "rute optimal" : a.status === "limit" ? "kena batas node di sebagian SPPG" : "tidak menjamin optimal" }));
+      if (star) t.append(h("div", { class: "tn", text: `hanya ${a.served}/${cur.n} sekolah terlayani` }));
+    });
+    row.addEventListener("pointerenter", show); row.addEventListener("pointermove", moveTip); row.addEventListener("pointerleave", hideTip);
+    row.addEventListener("focus", () => { const r = row.getBoundingClientRect(); show({ clientX: r.left + 160, clientY: r.bottom }); });
+    row.addEventListener("blur", hideTip);
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      setTimeout(() => {
+        if (M.log) row.querySelector(".hc-dot").style.left = x + "%";
+        else row.querySelector(".hc-bar").style.width = x + "%";
+        val.style.left = `calc(${x}% + ${M.log ? 14 : 8}px)`;
+      }, REDUCE ? 0 : i * 45);
+    }));
+    val.style.left = M.log ? "14px" : "8px";
+    return row;
+  });
+  const narrow = innerWidth <= 640, plotW = box.clientWidth - (narrow ? 188 : 260);
+  const every = plotW / Math.max(1, sc.ticks.length - 1) < 52 ? 2 : 1;   // label berselang kalau sempit
+  const axis = h("div", { class: "hc-axis" }, ...sc.ticks.map((t, i) => (i % every && i !== sc.ticks.length - 1 ? null
+    : h("span", { style: `left:${sc.pos(t)}%`, text: M.axis(t) }))));
+  box.replaceChildren(grid, ...rows, axis);
+  $("#cmpFoot").textContent = M.partial && partial.length
+    ? `* ${partial.map((a) => a.label).join(", ")} hanya melayani ${partial.map((a) => a.served).join(", ")} dari ${cur.n} sekolah (pencarian tidak selesai di sebagian SPPG), jadi angkanya tidak sebanding.` : "";
+}
+
+// ================================================================ tabel
+const COLS = [
+  { k: "label", t: "Algoritma", get: (a) => a.order, cell: (a) => [h("i", { class: "key", style: `--c:${cvar(a)}` }), a.label] },
+  { k: "status", t: "Status", get: (a) => ({ optimal: 0, limit: 1, suboptimal: 2 }[a.status]), cell: (a) => [badge(a)] },
+  { k: "cost", t: "Biaya bensin", get: (a) => a.cost_rp, cell: (a) => rp(a.cost_rp) + (a.served < cur.n ? " *" : "") },
+  { k: "km", t: "Jarak", get: (a) => a.km, cell: (a) => num(a.km, 1) + " km" },
+  { k: "arr", t: "Rata-rata tiba", get: (a) => a.mean_arrival_min, cell: (a) => num(a.mean_arrival_min, 1) + " mnt" },
+  { k: "veh", t: "Granmax", get: (a) => a.n_vehicles, cell: (a) => num(a.n_vehicles) },
+  { k: "gap", t: "Selisih F", get: (a) => a.search.gap_mean_pct, cell: (a) => gapFmt(a.search.gap_mean_pct) },
+  { k: "exp", t: "Node diekspansi", get: (a) => a.search.expanded, cell: (a) => num(a.search.expanded) },
+  { k: "mem", t: "Memori maks", get: (a) => a.search.max_stored, cell: (a) => num(a.search.max_stored) },
+  { k: "time", t: "Waktu", get: (a) => a.search.runtime_s, cell: (a) => dur(a.search.runtime_s) },
+];
+let sortBy = { k: "label", dir: 1 };
+function renderTable() {
+  const col = COLS.find((c) => c.k === sortBy.k);
+  const rows = [...cur.algos].sort((x, y) => (col.get(x) - col.get(y)) * sortBy.dir || x.order - y.order);
+  const head = h("tr", {}, ...COLS.map((c) => h("th", { scope: "col", "aria-sort": c.k === sortBy.k ? (sortBy.dir > 0 ? "ascending" : "descending") : null },
+    h("button", { onclick: () => { sortBy = { k: c.k, dir: sortBy.k === c.k ? -sortBy.dir : 1 }; renderTable(); } },
+      c.t, h("span", { class: "ar", "aria-hidden": "true", text: c.k === sortBy.k && sortBy.dir < 0 ? "▼" : "▲" })))));
+  $("#cmpTable").replaceChildren(h("thead", {}, head),
+    h("tbody", {}, ...rows.map((a) => h("tr", {}, ...COLS.map((c) => h("td", {}, c.cell(a)))))));
+}
+
+// ================================================================ grafik skalabilitas
+const LINE = {
+  expanded: { tab: "Node diekspansi", get: (r) => r.expanded, fmt: (v) => num(v), axis: compact, title: "node diekspansi" },
+  stored: { tab: "Memori", get: (r) => r.stored, fmt: (v) => num(v), axis: compact, title: "node tersimpan maksimum" },
+  runtime: { tab: "Waktu komputasi", get: (r) => r.runtime, fmt: dur, axis: dur, title: "waktu komputasi" },
+};
+let lineDrawn = false;
+function buildLineControls() {
+  $("#lineSeg").replaceChildren(...Object.entries(LINE).map(([k, m]) => h("button", { "aria-pressed": String(k === lineMetric), "data-k": k,
+    onclick: () => { lineMetric = k; [...$("#lineSeg").children].forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.k === k))); renderLine(true); } }, m.tab)));
+  const sc = DATA.scaling;
+  $("#lineLegend").replaceChildren(...sc.algos.map((a) => h("button", { "aria-pressed": "true", "data-k": a.key,
+    onclick: (e) => { lineHidden.has(a.key) ? lineHidden.delete(a.key) : lineHidden.add(a.key); e.currentTarget.setAttribute("aria-pressed", String(!lineHidden.has(a.key))); renderLine(false); },
+    onmouseenter: () => emphasize(a.key), onmouseleave: () => emphasize(null) },
+  h("i", { class: "key", style: `--c:${cvar(a)}` }), a.label)));
+  $("#skalaSub").textContent = `Sub-masalah acak berisi k = ${sc.ks[0]} sampai ${sc.ks.at(-1)} sekolah dari SPPG di ${sc.instance_title} ` +
+    `(${sc.per_k} sub-masalah per k, median). Ruang keadaan tumbuh eksponensial; heuristik yang tajam menahannya.`;
+  $("#lineFoot").textContent = `Titik untuk k yang sebagian sub-masalahnya kena batas ${num(DATA.max_nodes)} node tidak digambar (garis berhenti). ` +
+    "Grafik ini tidak bergantung pada pilihan instance di atas.";
+}
+function emphasize(key) {
+  document.querySelectorAll("#lineChart [data-a]").forEach((e) => e.classList.toggle("dim", key !== null && e.dataset.a !== key));
+}
+function renderLine(animate) {
+  const box = $("#lineChart");
+  if (!box.clientWidth) return;
+  const M = LINE[lineMetric], sc = DATA.scaling, W = box.clientWidth, H = Math.max(280, Math.min(420, W * 0.46));
+  const m = { l: 64, r: 18, t: 14, b: 40 };
+  const all = sc.algos.flatMap((a) => a.rows.filter((r) => r.solved === 1).map(M.get)).filter((v) => v > 0);
+  const lo = Math.floor(Math.log10(Math.min(...all))), hi = Math.ceil(Math.log10(Math.max(...all)));
+  const ks = sc.ks, X = (k) => m.l + (k - ks[0]) / (ks.at(-1) - ks[0]) * (W - m.l - m.r);
+  const Y = (v) => m.t + (hi - Math.log10(Math.max(v, Math.pow(10, lo)))) / (hi - lo) * (H - m.t - m.b);
+  const svg = sv("svg", { viewBox: `0 0 ${W} ${H}`, height: H, role: "img", "aria-label": `Skalabilitas: ${M.title} terhadap jumlah sekolah k, skala log` });
+  for (let e = lo; e <= hi; e++) {
+    sv("line", { x1: m.l, x2: W - m.r, y1: Y(10 ** e), y2: Y(10 ** e), class: e === lo ? "ax" : "gl" }, svg);
+    sv("text", { x: m.l - 10, y: Y(10 ** e) + 4, "text-anchor": "end" }, svg).textContent = M.axis(10 ** e);
+  }
+  for (const k of ks) sv("text", { x: X(k), y: H - m.b + 20, "text-anchor": "middle" }, svg).textContent = k;
+  sv("text", { x: (m.l + W - m.r) / 2, y: H - 4, "text-anchor": "middle" }, svg).textContent = "jumlah sekolah di SPPG (k)";
+  const xh = sv("line", { y1: m.t, y2: H - m.b, class: "xh" }, svg);
+  const vis = sc.algos.filter((a) => !lineHidden.has(a.key));
+  for (const a of vis) {
+    let d = "", gap = true;
+    for (const r of a.rows) {
+      if (r.solved !== 1) { gap = true; continue; }
+      d += (gap ? "M" : "L") + X(r.k).toFixed(1) + " " + Y(M.get(r)).toFixed(1);
+      gap = false;
+    }
+    const p = sv("path", { d, class: "ln", "data-a": a.key, style: `stroke:${cvar(a)}`, pathLength: 1 }, svg);
+    if (animate && !REDUCE) {
+      p.style.strokeDasharray = "1"; p.style.strokeDashoffset = "1";
+      requestAnimationFrame(() => { p.style.transition = "stroke-dashoffset 1.4s cubic-bezier(.45,0,.2,1)"; p.style.strokeDashoffset = "0"; });
+      p.addEventListener("transitionend", () => { p.style.strokeDasharray = ""; p.style.transition = ""; }, { once: true });
+    }
+    for (const r of a.rows) if (r.solved === 1) sv("circle", { cx: X(r.k), cy: Y(M.get(r)), r: a.key === DATA.reference ? 5 : 4, class: "mk", "data-a": a.key, style: `fill:${cvar(a)}` }, svg);
+  }
+  const hit = sv("rect", { x: m.l, y: m.t, width: W - m.l - m.r, height: H - m.t - m.b, fill: "transparent" }, svg);
+  const onMove = (ev) => {
+    const r = svg.getBoundingClientRect(), px = (ev.clientX - r.left) * (W / r.width);
+    const k = ks.reduce((b, x) => (Math.abs(X(x) - px) < Math.abs(X(b) - px) ? x : b), ks[0]);
+    xh.setAttribute("x1", X(k)); xh.setAttribute("x2", X(k)); xh.style.opacity = 1;
+    showTip(ev, (t) => {
+      t.append(h("div", { class: "th", text: `k = ${k} sekolah · ${M.title}` }));
+      vis.map((a) => [a, a.rows.find((x) => x.k === k)]).sort((p, q) => M.get(q[1]) - M.get(p[1]))
+        .forEach(([a, row]) => tipRow(t, cvar(a), row.solved === 1 ? M.fmt(M.get(row)) : "batas node", a.label));
+    });
+  };
+  hit.addEventListener("pointermove", onMove);
+  hit.addEventListener("pointerleave", () => { xh.style.opacity = 0; hideTip(); });
+  box.replaceChildren(svg);
+}
+
+// ================================================================ animasi & berkas
+function renderAnim() {
+  const base = `${cur.name}/animasi.html`;
+  $("#animSub").textContent = `Animasi gaya VisuAlgo untuk ${cur.title}: semua ${cur.m} SPPG dicari bersamaan, pseudocode mengikuti SPPG terbesar.`;
+  $("#animAlgos").replaceChildren(h("a", { class: "btn solid", href: `${base}#stage=1&algoRoute=${encodeURIComponent(DATA.reference)}` }, "Buka animasi pencarian",
+    h("span", { "aria-hidden": "true", text: "→" })),
+  ...DATA.anim_algos.map((k) => h("a", { class: "chip", href: `${base}#stage=1&algoRoute=${encodeURIComponent(k)}` },
+    h("i", { class: "key", style: `--c:${cvar(algoOf(k))}` }), algoOf(k).label)));
+  $("#animDeliver").href = `${base}#stage=2&algoRoute=${encodeURIComponent(DATA.reference)}`;
+  const f = cur.files, links = [];
+  if (f.txt) links.push([f.txt, "Rute terbaik (teks)"]);
+  if (f.folium) links.push([f.folium, "Peta Folium (semua layer)"]);
+  for (const a of cur.algos) if (a.png) links.push([a.png, `Gambar rute ${a.label}`, a]);
+  for (const [p, t] of DATA.figures) links.push([p, t]);
+  $("#downloads").replaceChildren(...links.map(([href, t, a]) => h("a", { class: "chip", href, target: "_blank", rel: "noopener" },
+    a ? h("i", { class: "key", style: `--c:${cvar(a)}` }) : h("span", { "aria-hidden": "true", text: "↗" }), t)));
+}
+function buildAnimArt() {
+  const tree = $("#treeArt");
+  const lv = [[200], [110, 290], [60, 160, 240, 340], [35, 85, 135, 185, 215, 265, 315, 365]];
+  const ys = [28, 78, 128, 170];
+  const order = [];
+  lv.forEach((row, d) => row.forEach((x, i) => {
+    if (d) sv("line", { x1: lv[d - 1][Math.floor(i / 2)], y1: ys[d - 1], x2: x, y2: ys[d] }, tree);
+    order.push([x, ys[d], d, i]);
+  }));
+  const path = new Set(["0-0", "1-1", "2-2", "3-5"]);
+  order.forEach(([x, y, d, i], n) => sv("circle", { cx: x, cy: y, r: d === 3 ? 7 : 9, class: d === 3 && i === 5 ? "goal" : "",
+    style: `animation-delay:${(path.has(`${d}-${i}`) ? d * 0.5 : 0.25 + n * 0.12).toFixed(2)}s` }, tree));
+  const van = $("#vanArt");
+  const road = "M30 150 C 90 150, 100 60, 170 70 S 250 150, 300 110 S 360 40, 380 50";
+  sv("path", { d: road, fill: "none", stroke: "#2a2d33", "stroke-width": 14, "stroke-linecap": "round" }, van);
+  sv("path", { d: road, id: "vroad", fill: "none", stroke: "#eb6834", "stroke-width": 3, "stroke-linecap": "round", "stroke-dasharray": "2 9", opacity: 0.8 }, van);
+  [[30, 150, "#2a78d6"], [170, 70, null], [300, 110, null], [380, 50, null]].forEach(([x, y, c], i) => {
+    if (c) sv("rect", { x: x - 9, y: y - 9, width: 18, height: 18, rx: 4, fill: c, stroke: "#fff", "stroke-width": 2 }, van);
+    else {
+      const s = sv("circle", { cx: x, cy: y, r: 8, fill: "#0a0c0f", stroke: "#eb6834", "stroke-width": 3 }, van);
+      sv("animate", { attributeName: "fill", values: "#0a0c0f;#0a0c0f;#eb6834;#eb6834;#0a0c0f", keyTimes: `0;${(0.2 + i * 0.22).toFixed(2)};${(0.24 + i * 0.22).toFixed(2)};0.94;1`, dur: "6s", repeatCount: "indefinite" }, s);
+    }
+  });
+  const g = sv("g", {}, van);
+  sv("rect", { x: -13, y: -8, width: 18, height: 12, rx: 2.5, fill: "#f4f4f1" }, g);
+  sv("path", { d: "M5 -5h4l4 4v5H5z", fill: "#f4f4f1" }, g);
+  sv("circle", { cx: -7, cy: 5, r: 3, fill: "#0a0c0f", stroke: "#f4f4f1", "stroke-width": 1.5 }, g);
+  sv("circle", { cx: 8, cy: 5, r: 3, fill: "#0a0c0f", stroke: "#f4f4f1", "stroke-width": 1.5 }, g);
+  const mo = sv("animateMotion", { dur: "6s", repeatCount: "indefinite", rotate: "auto" }, g);
+  sv("mpath", { href: "#vroad" }, mo);
+  if (REDUCE) { tree.pauseAnimations?.(); van.pauseAnimations?.(); }
+}
+
+// ================================================================ reveal & navigasi
+const revealObs = "IntersectionObserver" in window ? new IntersectionObserver((es) => es.forEach((e) => {
+  if (e.isIntersecting) { e.target.classList.add("in"); revealObs.unobserve(e.target); }
+}), { rootMargin: "0px 0px -8% 0px" }) : null;
+function observeReveal(root = document) {
+  root.querySelectorAll(".reveal:not(.in)").forEach((e) => (revealObs ? revealObs.observe(e) : e.classList.add("in")));
+}
+function spy() {
+  const links = [...document.querySelectorAll(".nav a")];
+  const obs = new IntersectionObserver((es) => es.forEach((e) => {
+    if (e.isIntersecting) links.forEach((l) => l.classList.toggle("on", l.getAttribute("href") === "#" + e.target.id));
+  }), { rootMargin: "-45% 0px -50% 0px" });
+  links.forEach((l) => obs.observe($(l.getAttribute("href"))));
+}
+
+// ================================================================ mulai
+themeIcon();
+buildHero();
+buildParams();
+buildInstSeg();
+buildCmpSeg();
+buildLineControls();
+buildAnimArt();
+initMap();
+renderInstance(false);
+observeReveal();
+spy();
+const lineObs = new IntersectionObserver((es) => {
+  if (es.some((e) => e.isIntersecting) && !lineDrawn) { lineDrawn = true; renderLine(true); lineObs.disconnect(); }
+}, { rootMargin: "0px 0px -15% 0px" });
+lineObs.observe($("#lineChart"));
+let rz = 0;
+new ResizeObserver(() => { cancelAnimationFrame(rz); rz = requestAnimationFrame(() => lineDrawn && renderLine(false)); }).observe($("#lineChart"));
+</script>
+</body>
+</html>
