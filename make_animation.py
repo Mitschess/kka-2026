@@ -1,8 +1,13 @@
-"""Animasi gaya VisuAlgo: (1) jalannya algoritma mencari rute, (2) Granmax mengantar MBG.
+"""Animasi gaya VisuAlgo, tiga tahap: (1) alokasi sekolah -> SPPG (Bagian B: HC, SA, GA),
+(2) pencarian rute terbaik di dalam satu SPPG (Bagian A: BFS, UCS, A*, GBFS, DFS-B&B),
+(3) Granmax mengantar MBG memakai solusi terbaik tahap 1.
 
-Setiap algoritma dijalankan sekali (seed 1, bobot utama w) dengan callback `trace`
-untuk merekam langkah-langkahnya. Hasil Greedy/HC/SA/GA sama persis dengan run seed 1
-di eksperimen (trace tidak memakai rng).
+Tahap 1 jalan di seluruh instance (semua sekolah); tiap langkah rute tiap SPPG dihitung
+optimal oleh Router sehingga petanya selalu solusi lengkap yang valid. Tahap 2 jalan di
+satu sub-masalah nyata (SPPG dengan sekolah terbanyak, dari penugasan terbaik Bagian B,
+dibatasi k <= 9 supaya DFS-B&B/BFS tidak meledak) -- sama dengan sub-masalah di
+run_search.py. Semua algoritma dijalankan dengan callback `trace` (search.py,
+local_search.py), hasilnya identik dengan run seed 1 di eksperimen (trace tidak memakai rng).
 
 Contoh:
   python make_animation.py                          # semua instance
@@ -14,6 +19,7 @@ import json
 import math
 import sys
 import time
+from collections import defaultdict
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -23,10 +29,10 @@ import requests
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / "src"))
 
-from mbgvrp import algorithms as A  # noqa: E402
-from mbgvrp import encoding as enc  # noqa: E402
-from mbgvrp.construct import decode_order  # noqa: E402
+from mbgvrp import local_search as LS  # noqa: E402
 from mbgvrp.problem import load_instance  # noqa: E402
+from mbgvrp.router import Router  # noqa: E402
+from mbgvrp.search import SEARCHES, RoutingProblem  # noqa: E402
 from mbgvrp.viz import DEPOT_COLORS  # noqa: E402
 
 TEMPLATE = ROOT / "src" / "mbgvrp" / "animation_template.html"
@@ -38,161 +44,180 @@ def pack(routes):
     return [[int(d)] + [int(s) for s in seq] for d, seq in routes if len(seq)]
 
 
-class Recorder:
-    """Mengubah event trace menjadi frame animasi {l, r, m, i, ...}."""
-
-    def __init__(self, inst, w, penalty):
-        self.inst, self.w, self.penalty = inst, w, penalty
+# ============================================================================= Bagian B
+# Alokasi sekolah -> SPPG (penugasan x[s] = SPPG). Rute tiap SPPG dihitung optimal oleh
+# Router di setiap langkah, jadi peta selalu menampilkan solusi lengkap yang valid.
+class AllocRecorder:
+    def __init__(self, inst, w, penalty, router):
+        self.inst, self.w, self.penalty, self.router = inst, w, penalty, router
         self.frames = []
+
+    def routes_for(self, x):
+        masks = [0] * self.inst.m
+        for s, d in enumerate(x):
+            masks[d] |= 1 << s
+        return self.router.all_routes(masks)
 
     def metrics(self, routes, f=None):
         ev = self.inst.evaluate(routes)
         if f is None:
             f = self.inst.scalarize(ev, self.w, self.penalty)
-        served = sum(len(seq) for _, seq in routes)
-        # evaluate() membagi dengan n; untuk solusi parsial (Greedy di tengah jalan)
-        # rata-rata dihitung atas sekolah yang sudah masuk rute saja
-        mean = ev.mean_arrival * self.inst.n / served if served else 0.0
         out = {"f": round(f, 4), "Biaya bensin": f"Rp{ev.cost:,.0f}",
-               "Rata-rata tiba": f"{mean:.1f} mnt", "Granmax": ev.n_vehicles}
-        if served < self.inst.n:
-            out["Sekolah di rute"] = f"{served}/{self.inst.n}"
+               "Rata-rata tiba": f"{ev.mean_arrival:.1f} mnt", "Granmax": ev.n_vehicles}
         if not ev.feasible:
             out["Melanggar"] = (f"kapasitas +{ev.cap_excess}" if ev.cap_excess else "") + \
                                (f" armada +{ev.veh_excess}" if ev.veh_excess else "") + \
                                (f" telat {ev.late_min:.0f} mnt" if ev.late_min else "")
         return out
 
-    def add(self, line, routes, msg, info=None, f=None, **extra):
+    def add(self, line, x, msg, info=None, f=None, hl=None):
+        routes = self.routes_for(x)
         i = dict(info or {})
         i.update(self.metrics(routes, f))
         fr = {"l": line, "r": pack(routes), "m": msg, "i": i}
-        fr.update(extra)
+        if hl:
+            fr["hl"] = list(hl)
         self.frames.append(fr)
 
 
-# ----------------------------------------------------------------------------- Greedy
-GREEDY_CODE = [
-    "rute ← kosong; semua sekolah belum dilayani",
-    "while masih ada sekolah belum dilayani:",
-    "  for tiap sekolah j × tiap opsi (ujung rute / Granmax baru):",
-    "    Δ ← w·Δbiaya/ref + (1−w)·tiba_j/(n·ref)",
-    "  pilih opsi feasible (tiba ≤ 180 mnt) dengan Δ terkecil",
-    "  tambahkan sekolah j ke rute tersebut",
-    "return rute",
+HC_CODE = [
+    "x <- penugasan sekolah -> SPPG acak (hormati kapasitas armada)",
+    "while True:",
+    "  tetangga <- semua pindah(s -> SPPG lain) & tukar(s, u) dari x",
+    "  (pindah/tukar) dF terkecil <- hasil terbaik dari semua tetangga",
+    "  if dF < 0:",
+    "    x <- tetangga itu        > naik satu langkah",
+    "  else:                      > optimum lokal",
+    "    berhenti, kembalikan x",
 ]
 
 
-def record_greedy(inst, w, penalty, cfg):
-    rec = Recorder(inst, w, penalty)
-    steps = []
-    res = A.run_greedy(inst, w, penalty, trace=lambda ev, **d: steps.append(d))
-    rec.add(0, [], "Mulai dari nol: belum ada Granmax yang berangkat.")
-    prev = []
-    for k, d in enumerate(steps, start=1):
-        s = d["school"]
-        name = inst.school_name(s)
-        info = {"Langkah": f"{k}/{inst.n}"}
-        rec.add(1, prev, f"Masih ada {inst.n - k + 1} sekolah yang belum dilayani.", info)
-        rec.add(3, prev, f"Menilai {d['n_options']} kombinasi (sekolah, opsi) yang feasible.", info)
-        how = "membuka Granmax baru dari SPPG" if d["new_route"] else "menyambung di ujung rute"
-        rec.add(4, prev, f"Δ terkecil: {name} ({how}), tiba {d['arrive']:.1f} mnt.", info, hl=[s])
-        rec.add(5, d["routes"], f"{name} ditambahkan ke rute.", info, hl=[s])
-        prev = d["routes"]
-    rec.add(6, res.routes, "Selesai: semua sekolah sudah punya Granmax.", f=res.fitness)
+def record_hc_alloc(inst, w, penalty, budget, seed, params):
+    router = Router(inst, w, penalty)
+    rec = AllocRecorder(inst, w, penalty, router)
+    events = []
+    rng = np.random.default_rng(seed * 1000 + int(w * 100))
+    res = LS.run("HC", inst, w, penalty, budget, rng, trace=lambda ev, **d: events.append((ev, d)), **params)
+    init = next(d for ev, d in events if ev == "hc_init")
+    steps = [d for ev, d in events if ev == "hc_step"]
+    N = len(steps)
+    detail = set(range(min(5, N))) | set(range(max(0, N - 2), N))
+    every = max(1, N // N_COARSE)
+    rec.add(0, init["x"], "Penugasan awal acak: tiap sekolah dapat SPPG sembarang (hormati kapasitas).",
+            f=init["F"])
+    for k, d in enumerate(steps):
+        if k not in detail and k % every:
+            continue
+        x_before = d["x"]
+        kind, school, v = d["move"]
+        x_after = list(x_before)
+        if kind == 0:
+            x_after[school] = v
+        else:
+            x_after[school], x_after[v] = x_after[v], x_after[school]
+        info = {"Langkah": f"{k + 1:,}/{N:,}", "dF": f"{d['dF']:+.4f}", "Evaluasi": f"{d['evals']:,}"}
+        rec.add(2, x_before, f"Langkah {k + 1}/{N}: nilai semua pindah & tukar dari x.", info, f=d["F"],
+                hl=[school])
+        if kind == 0:
+            msg = f"dF terkecil: pindahkan {inst.school_name(school)} ke {inst.depot_name(v)}."
+        else:
+            msg = f"dF terkecil: tukar {inst.school_name(school)} <-> {inst.school_name(v)}."
+        rec.add(4, x_after, msg, info, f=d["F"] + d["dF"], hl=[school] + ([v] if kind == 1 else []))
+    rec.add(6, res.assignment, "Optimum lokal (tidak ada tetangga lebih baik): berhenti.", f=res.fitness)
     return rec.frames, res.routes
 
 
-# -------------------------------------------------------------------------------- SA
 SA_CODE = [
-    "x ← solusi acak (urutan sekolah + pemisah antar-Granmax)",
-    "T ← T₀   (kenaikan f rata-rata diterima dg peluang 0.8)",
-    "for iter = 1 … N:",
-    "  y ← tetangga(x)   (swap / insert / inversion acak)",
-    "  Δ ← f(y) − f(x)",
-    "  if Δ ≤ 0 or rand() < e^(−Δ/T):",
-    "    x ← y          ▸ diterima",
-    "  else: buang y    ▸ ditolak",
-    "  T ← α·T          (pendinginan geometrik)",
+    "x <- penugasan sekolah -> SPPG acak (hormati kapasitas)",
+    "T <- T0   (dF memburuk rata-rata diterima dg peluang 0.8)",
+    "for iter = 1 ... N:",
+    "  y <- tetangga acak dari x (satu pindah atau tukar)",
+    "  dF <- F(y) - F(x)",
+    "  if dF <= 0 or rand() < e^(-dF/T):",
+    "    x <- y          > diterima",
+    "  else: buang y     > ditolak",
+    "  T <- a.T          (pendinginan geometrik)",
     "return x terbaik",
 ]
 
 
-def record_sa(inst, w, penalty, cfg, budget, seed):
-    rec = Recorder(inst, w, penalty)
+def record_sa_alloc(inst, w, penalty, budget, seed, params):
+    router = Router(inst, w, penalty)
+    rec = AllocRecorder(inst, w, penalty, router)
     events = []
     rng = np.random.default_rng(seed * 1000 + int(w * 100))
-    res = A.run_sa(inst, w, penalty, budget=budget, rng=rng, trace=lambda ev, **d: events.append((ev, d)),
-                   **cfg["algorithms"]["sa"])
-    init = events[0][1]
-    steps = [d for ev, d in events[1:]]
+    res = LS.run("SA", inst, w, penalty, budget, rng, trace=lambda ev, **d: events.append((ev, d)), **params)
+    init = next(d for ev, d in events if ev == "sa_init")
+    steps = [d for ev, d in events if ev == "sa_step"]
     N = len(steps)
-    detail = set(range(1, 6)) | set(range(N // 3, N // 3 + 2)) | set(range(N - 2, N + 1))
+    alpha = init["alpha"]
+    detail = set(range(5)) | set(range(N // 3, N // 3 + 2)) | set(range(max(0, N - 2), N))
     every = max(1, N // N_COARSE)
-    x0 = enc.decode(inst, init["x"])
-    rec.add(0, x0, "Solusi awal acak: biasanya masih melanggar kapasitas (penalti besar).", f=init["fx"])
-    rec.add(1, x0, f"Suhu awal T₀ = {init['T0']:.4f}, α = {init['cooling']:.6f}.",
-            {"T": f"{init['T0']:.4f}"}, f=init["fx"])
-    for d in steps:
-        it = d["it"]
-        if it not in detail and it % every:
+    rec.add(0, init["x"], "Penugasan awal acak: biasanya masih melanggar kapasitas (penalti besar).",
+            f=init["F"])
+    rec.add(1, init["x"], f"Suhu awal T0 = {init['T0']:.4f}.", {"T": f"{init['T0']:.4f}"}, f=init["F"])
+    for k, d in enumerate(steps):
+        if k not in detail and k % every:
             continue
-        x = enc.decode(inst, d["x"])
-        y = enc.decode(inst, d["y"])
-        delta = d["fy"] - d["fx"]
-        p = 1.0 if delta <= 0 else math.exp(-delta / d["temp"])
-        info = {"Iterasi": f"{it:,}/{N:,}", "T": f"{d['temp']:.5f}", "f(x)": round(d["fx"], 4),
-                "f terbaik": round(d["best_f"], 4)}
-        new_x, new_f = (y, d["fy"]) if d["accepted"] else (x, d["fx"])
-        if it in detail:
-            rec.add(3, y, "Kandidat tetangga y dari x (satu operasi acak).", info, f=d["fy"])
-            rec.add(4, y, f"Δ = f(y) − f(x) = {delta:+.4f}", dict(info, Δ=f"{delta:+.4f}"), f=d["fy"])
-            rec.add(5, y, ("Δ ≤ 0: y lebih baik, langsung diterima." if delta <= 0 else
-                           f"y lebih buruk, peluang diterima e^(−Δ/T) = {p:.3f}"),
-                    dict(info, Δ=f"{delta:+.4f}", **{"P(terima)": f"{p:.3f}"}), f=d["fy"])
-            rec.add(6 if d["accepted"] else 7, new_x,
-                    "y diterima, menjadi solusi sekarang." if d["accepted"] else "y ditolak, x tetap.",
-                    info, f=new_f)
-            rec.add(8, new_x, "Suhu diturunkan sedikit.", info, f=new_f)
+        x_before = d["x"]
+        kind, school, v = d["move"]
+        x_after = list(x_before)
+        if kind == 0:
+            x_after[school] = v
         else:
-            rec.add(6 if d["accepted"] else 7, new_x,
-                    f"Iterasi {it:,}: {'diterima' if d['accepted'] else 'ditolak'} "
-                    f"(T makin kecil → makin jarang menerima solusi buruk).", info, f=new_f)
-    rec.add(9, res.routes, "Selesai: kembalikan solusi terbaik yang pernah ditemukan.", f=res.fitness)
+            x_after[school], x_after[v] = x_after[v], x_after[school]
+        f_after = d["F"] + d["dF"]
+        p = 1.0 if d["dF"] <= 0 else math.exp(-d["dF"] / d["T"])
+        info = {"Iterasi": f"{k + 1:,}/{N:,}", "T": f"{d['T']:.5f}", "dF": f"{d['dF']:+.4f}"}
+        if k in detail:
+            rec.add(3, x_after, "Tetangga y dari x (satu pindah/tukar acak).", info, f=f_after)
+            rec.add(5, x_after, ("dF <= 0: y lebih baik, langsung diterima." if d["dF"] <= 0 else
+                                  f"y lebih buruk, peluang diterima e^(-dF/T) = {p:.3f}"),
+                    dict(info, **{"P(terima)": f"{p:.3f}"}), f=f_after)
+            rec.add(6 if d["accepted"] else 7, x_after if d["accepted"] else x_before,
+                    "y diterima, menjadi solusi sekarang." if d["accepted"] else "y ditolak, x tetap.",
+                    info, f=f_after if d["accepted"] else d["F"])
+            rec.add(8, x_after if d["accepted"] else x_before, f"Suhu diturunkan: T <- {d['T'] * alpha:.5f}.",
+                    info, f=f_after if d["accepted"] else d["F"])
+        else:
+            rec.add(6 if d["accepted"] else 7, x_after if d["accepted"] else x_before,
+                    f"Iterasi {k + 1:,}: {'diterima' if d['accepted'] else 'ditolak'} "
+                    f"(T makin kecil -> makin jarang menerima solusi buruk).", info,
+                    f=f_after if d["accepted"] else d["F"])
+    rec.add(9, res.assignment, "Selesai: kembalikan x terbaik yang pernah ditemukan.", f=res.fitness)
     return rec.frames, res.routes
 
 
-# -------------------------------------------------------------------------------- GA
 GA_CODE = [
-    "P ← 100 urutan sekolah acak",
-    "evaluasi: decoder greedy mengubah urutan → rute",
-    "for gen = 1 … G:",
-    "  P' ← 2 individu elit terbaik dari P",
+    "P <- 100 kromosom acak (gen ke-s = SPPG untuk sekolah s)",
+    "evaluasi tiap kromosom: F = total biaya rute optimal tiap SPPG",
+    "for gen = 1 ... G:",
+    "  P' <- 2 individu elit terbaik dari P",
     "  while |P'| < 100:",
-    "    p1, p2 ← tournament(P, k = 3)",
-    "    anak ← order_crossover(p1, p2)   (peluang 0.9)",
-    "    if rand() < 0.3: anak ← mutasi(anak)",
-    "    P' ← P' ∪ {anak}",
-    "  P ← P'",
+    "    p1, p2 <- tournament(P, k = 3)",
+    "    anak <- uniform crossover(p1, p2)  (peluang 0.9; tiap gen 50:50 p1/p2)",
+    "    tiap gen anak diacak ulang dg peluang 1/n  (mutasi)",
+    "    P' <- P' + {anak}",
+    "  P <- P'",
     "return individu terbaik",
 ]
 
 
-def record_ga(inst, w, penalty, cfg, budget, seed):
-    rec = Recorder(inst, w, penalty)
+def record_ga_alloc(inst, w, penalty, budget, seed, params):
+    router = Router(inst, w, penalty)
+    rec = AllocRecorder(inst, w, penalty, router)
     gens, children = [], []
 
     def tr(ev, **d):
         if ev == "ga_gen":
             i = int(np.argmin(d["fit"]))
-            gens.append({"gen": d["gen"], "best": d["pop"][i].copy(), "best_f": float(d["fit"][i]),
-                         "mean_f": float(np.mean(d["fit"])), "evals": d["evals"]})
-        elif d["gen"] == 1 and len(children) < 3:
-            children.append({k: (v.copy() if isinstance(v, np.ndarray) else v) for k, v in d.items()})
+            gens.append({"gen": d["gen"], "best": d["pop"][i], "best_f": float(d["fit"][i]),
+                        "mean_f": float(np.mean(d["fit"])), "evals": d["evals"]})
+        elif ev == "ga_child" and d["gen"] == 1 and len(children) < 3:
+            children.append(dict(d))
 
     rng = np.random.default_rng(seed * 1000 + int(w * 100))
-    res = A.run_ga(inst, w, penalty, budget=budget, rng=rng, trace=tr, **cfg["algorithms"]["ga"])
-    dec = lambda order: decode_order(inst, order.tolist(), w)  # noqa: E731
+    res = LS.run("GA", inst, w, penalty, budget, rng, trace=tr, **params)
     G = gens[-1]["gen"]
     every = max(1, G // N_COARSE)
 
@@ -201,76 +226,232 @@ def record_ga(inst, w, penalty, cfg, budget, seed):
                 "f rata-rata": round(g["mean_f"], 4), "Evaluasi": f"{g['evals']:,}"}
 
     g0 = gens[0]
-    rec.add(0, dec(g0["best"]), "100 kromosom acak. Kromosom = urutan sekolah diproses.", info(g0),
-            f=g0["best_f"])
-    rec.add(1, dec(g0["best"]), "Decoder menaruh sekolah satu per satu di opsi termurah. "
-            "Peta: individu terbaik.", info(g0), f=g0["best_f"])
+    rec.add(0, g0["best"], "100 kromosom acak. Gen ke-s = SPPG sekolah s.", info(g0), f=g0["best_f"])
+    rec.add(1, g0["best"], "Evaluasi: F = total biaya rute optimal tiap SPPG. Peta: individu terbaik.",
+            info(g0), f=g0["best_f"])
     for c in children:
         ci = info(g0)
-        rec.add(5, dec(c["p1"]), "Tournament: ambil 3 acak, yang terbaik jadi induk 1 (di peta).", ci)
-        rec.add(6, dec(c["child"]) if c["crossed"] else dec(c["p1"]),
-                "Order crossover: potongan urutan dari p1, sisanya mengikuti urutan p2." if c["crossed"]
+        rec.add(5, c["p1"], "Tournament: ambil 3 acak, terbaik jadi induk 1 (di peta).", ci)
+        rec.add(6, c["child"] if c["crossed"] else c["p1"],
+                "Uniform crossover: tiap gen diambil 50:50 dari p1/p2." if c["crossed"]
                 else "Tanpa crossover (peluang 0.1): anak = salinan p1.", ci)
-        rec.add(7, dec(c["child"]), "Anak dimutasi (swap/insert/inversion)." if c["mutated"]
-                else "Tidak dimutasi kali ini.", ci, f=c["child_f"])
-        rec.add(8, dec(c["child"]), "Anak masuk populasi baru.", ci, f=c["child_f"])
+        rec.add(7, c["child"], "Sebagian gen anak diacak ulang (mutasi)." if c["mutated"]
+                else "Tidak ada gen yang dimutasi kali ini.", ci, f=c["child_f"])
+        rec.add(8, c["child"], "Anak masuk populasi baru.", ci, f=c["child_f"])
     for g in gens[1:]:
         if g["gen"] % every and g["gen"] not in (1, G):
             continue
-        rec.add(9, dec(g["best"]), f"Generasi {g['gen']}: peta menampilkan individu terbaik.", info(g),
-                f=g["best_f"])
-    rec.add(10, res.routes, "Selesai: kembalikan individu terbaik.", f=res.fitness)
+        rec.add(9, g["best"], f"Generasi {g['gen']}: peta menampilkan individu terbaik.", info(g), f=g["best_f"])
+    rec.add(10, res.assignment, "Selesai: kembalikan individu terbaik.", f=res.fitness)
     return rec.frames, res.routes
 
 
-# -------------------------------------------------------------------------------- HC
-HC_CODE = [
-    "x ← solusi acak (urutan sekolah + pemisah antar-Granmax)",
-    "while anggaran evaluasi belum habis:",
-    "  N ← 50 tetangga acak dari x   (swap / insert / inversion)",
-    "  y ← tetangga terbaik di N",
-    "  if f(y) < f(x):",
-    "    x ← y          ▸ naik satu langkah",
-    "  else:            ▸ local optimum",
-    "    x ← solusi acak baru   (random restart)",
-    "return x terbaik dari semua restart",
+# ============================================================================= Bagian A
+# Pencarian rute terbaik di dalam satu SPPG (sub-masalah nyata dari Bagian B).
+BESTFIRST_LINES = {"init": 0, "pop": 2, "goal": 3, "kept": 6, "discard": 7}
+ASTAR_LINES = {"init": 0, "pop": 3, "goal": 4, "kept": 7, "discard": 8}
+BFS_LINES = {"init": 0, "pop": 2, "goal": 5, "kept": 6, "discard": 7}
+
+UCS_CODE = [
+    "frontier <- priority queue berisi akar, urut g(n) = biaya jalur",
+    "while frontier tidak kosong:",
+    "  n <- keluarkan node ber-g(n) terkecil",
+    "  if n = goal: kembalikan rute n",
+    "  for tiap aksi (antar sekolah j / pulang ke SPPG) dari n:",
+    "    anak <- terapkan aksi, g(anak) = g(n) + biaya langkah",
+    "    jalur termurah ke keadaan anak -> simpan & masuk frontier",
+    "    else: buang (sudah ada jalur lebih murah)",
+]
+GBFS_CODE = [
+    "frontier <- priority queue berisi akar, urut h(n) saja (abai g)",
+    "while frontier tidak kosong:",
+    "  n <- keluarkan node ber-h(n) terkecil",
+    "  if n = goal: kembalikan rute n (belum tentu optimal)",
+    "  for tiap aksi (antar sekolah j / pulang ke SPPG) dari n:",
+    "    anak <- terapkan aksi",
+    "    jalur termurah ke keadaan anak -> simpan & masuk frontier",
+    "    else: buang",
+]
+ASTAR_CODE = [
+    "frontier <- priority queue berisi akar, urut f(n) = g(n) + h(n)",
+    "h(n): batas bawah penugasan sekolah tersisa -> slot kendaraan (Hungaria)",
+    "while frontier tidak kosong:",
+    "  n <- keluarkan node ber-f(n) terkecil",
+    "  if n = goal: kembalikan rute n (optimal, h admissible)",
+    "  for tiap aksi (antar sekolah j / pulang ke SPPG) dari n:",
+    "    anak <- terapkan aksi, g(anak) = g(n) + biaya langkah",
+    "    jalur termurah ke keadaan anak -> simpan & masuk frontier urut f",
+    "    else: buang",
+]
+BFS_CODE = [
+    "frontier <- FIFO berisi akar; reached <- {akar}",
+    "while frontier tidak kosong:",
+    "  n <- keluarkan dari depan frontier",
+    "  for tiap aksi (antar sekolah j / pulang ke SPPG) dari n:",
+    "    anak <- terapkan aksi",
+    "    if anak = goal: kembalikan rute anak",
+    "    elif keadaan anak belum reached: simpan & masuk frontier (belakang)",
+    "    else: buang (sudah pernah dikunjungi)",
+]
+DFSBB_CODE = [
+    "stack <- [akar]; terbaik <- tak ada",
+    "while stack tidak kosong:",
+    "  n <- keluarkan dari atas stack (LIFO)",
+    "  if g(n) >= g(terbaik): buang n (dipangkas B&B)",
+    "  elif n = goal: terbaik <- n (incumbent baru)",
+    "  else: anak-anak <- semua aksi dari n, urut termurah di atas stack",
+    "return rute terbaik",
 ]
 
 
-def record_hc(inst, w, penalty, cfg, budget, seed):
-    rec = Recorder(inst, w, penalty)
+def _node_info(problem, node, extra=None):
+    rem = node.state[0]
+    done = problem.k - bin(rem).count("1")
+    i = {"f": round(node.g, 4), "g(n)": round(node.g, 4), "Sekolah terlayani": f"{done}/{problem.k}"}
+    if extra:
+        i.update(extra)
+    return i
+
+
+def record_bestfirst(problem, algo, lines, f_fn):
     events = []
-    rng = np.random.default_rng(seed * 1000 + int(w * 100))
-    res = A.run_hc(inst, w, penalty, budget=budget, rng=rng, trace=lambda ev, **d: events.append((ev, d)),
-                   **cfg["algorithms"]["hc"])
-    init = events[0][1]
-    steps = [d for ev, d in events[1:]]
-    N = len(steps)
-    restart_at = [k for k, d in enumerate(steps) if not d["improved"]]
-    detail = set(range(5)) | set(restart_at[:2]) | set(range(N - 2, N))
+    res = SEARCHES[algo](problem, trace=lambda ev, **d: events.append((ev, d)))
+    N = sum(1 for ev, _ in events if ev == "expand")
     every = max(1, N // N_COARSE)
-    x0 = enc.decode(inst, init["x"])
-    rec.add(0, x0, "Solusi awal acak: biasanya masih melanggar kapasitas (penalti besar).", f=init["fx"])
-    for k, d in enumerate(steps):
-        if k not in detail and k % every and d["improved"]:
-            continue
-        x = enc.decode(inst, d["x"])
-        y = enc.decode(inst, d["y"])
-        info = {"Langkah": f"{k + 1:,}/{N:,}", "f(x)": round(d["fx"], 4),
-                "f terbaik": round(d["best_f"], 4), "Restart": d["restarts"],
-                "Evaluasi": f"{d['evals']:,}"}
-        if k in detail:
-            rec.add(2, x, "Ambil 50 tetangga acak dari x.", info, f=d["fx"])
-            rec.add(3, y, "Tetangga terbaik y dari 50 kandidat.", info, f=d["fy"])
-            rec.add(4, y, f"f(y) = {d['fy']:.4f} {'<' if d['improved'] else '≥'} f(x) = {d['fx']:.4f}",
-                    info, f=d["fy"])
-        if d["improved"]:
-            rec.add(5, y, "y lebih baik, jadi solusi sekarang.", info, f=d["fy"])
-        else:
-            rec.add(7, x, f"Local optimum (restart ke-{d['restarts'] + 1}): mulai lagi dari solusi acak.",
-                    info, f=d["fx"])
-    rec.add(8, res.routes, "Selesai: kembalikan solusi terbaik dari semua restart.", f=res.fitness)
-    return rec.frames, res.routes
+    detail = set(range(min(5, N))) | set(range(max(0, N - 3), N))
+
+    def info(node, frontier=None, extra=None):
+        i = _node_info(problem, node, extra)
+        i["f"] = round(f_fn(node), 4)
+        if frontier is not None:
+            i["Frontier"] = frontier
+        return i
+
+    start_node = events[0][1]["node"]
+    frames = [{"l": lines["init"], "r": pack(problem.routes_of(start_node)),
+              "m": "Mulai dari SPPG, belum ada sekolah dikunjungi.", "i": info(start_node)}]
+    exp_i = -1
+    for ev, d in events[1:]:
+        if ev == "expand":
+            exp_i += 1
+            node = d["node"]
+            if exp_i in detail or not exp_i % every:
+                frames.append({"l": lines["pop"], "r": pack(problem.routes_of(node)),
+                               "i": info(node, d["frontier"]),
+                               "m": f"Ekspansi ke-{exp_i + 1}/{N}: keluarkan node terbaik dari frontier."})
+        elif ev == "child" and exp_i in detail:
+            child, kept = d["child"], d["kept"]
+            a = child.action
+            hl = [problem.schools[a - 1]] if a else []
+            line = lines["kept"] if kept else lines["discard"]
+            msg = ("Anak masuk frontier (jalur termurah ke keadaannya)." if kept else
+                   "Keadaan sudah tercapai dengan jalur lebih murah: dibuang.")
+            frames.append({"l": line, "r": pack(problem.routes_of(child)), "i": info(child), "m": msg, "hl": hl})
+        elif ev == "goal":
+            node = d["node"]
+            frames.append({"l": lines["goal"], "r": pack(problem.routes_of(node)), "i": info(node),
+                           "m": "Goal: semua sekolah terlayani, kembali ke SPPG."})
+    return frames, res.routes
+
+
+def record_bfs(problem):
+    events = []
+    res = SEARCHES["BFS"](problem, trace=lambda ev, **d: events.append((ev, d)))
+    N = sum(1 for ev, _ in events if ev == "expand")
+    every = max(1, N // N_COARSE)
+    detail = set(range(min(5, N))) | set(range(max(0, N - 3), N))
+
+    def info(node, frontier=None):
+        i = _node_info(problem, node)
+        if frontier is not None:
+            i["Frontier"] = frontier
+        return i
+
+    start_node = events[0][1]["node"]
+    frames = [{"l": BFS_LINES["init"], "r": pack(problem.routes_of(start_node)),
+              "m": "Mulai dari SPPG, belum ada sekolah dikunjungi.", "i": info(start_node)}]
+    exp_i = -1
+    for ev, d in events[1:]:
+        if ev == "expand":
+            exp_i += 1
+            node = d["node"]
+            if exp_i in detail or not exp_i % every:
+                frames.append({"l": BFS_LINES["pop"], "r": pack(problem.routes_of(node)),
+                               "i": info(node, d["frontier"]),
+                               "m": f"Ekspansi ke-{exp_i + 1}/{N}: keluarkan node dari depan frontier."})
+        elif ev == "child" and exp_i in detail:
+            child, kept = d["child"], d["kept"]
+            a = child.action
+            hl = [problem.schools[a - 1]] if a else []
+            line = BFS_LINES["kept"] if kept else BFS_LINES["discard"]
+            msg = "Keadaan baru: simpan & masuk belakang frontier." if kept else "Sudah pernah dikunjungi: buang."
+            frames.append({"l": line, "r": pack(problem.routes_of(child)), "i": info(child), "m": msg, "hl": hl})
+        elif ev == "goal":
+            node = d["node"]
+            frames.append({"l": BFS_LINES["goal"], "r": pack(problem.routes_of(node)), "i": info(node),
+                           "m": "Anak = goal: semua sekolah terlayani, kembali ke SPPG."})
+    return frames, res.routes
+
+
+def record_dfsbb(problem):
+    events = []
+    res = SEARCHES["DFS-B&B"](problem, trace=lambda ev, **d: events.append((ev, d)))
+    N = sum(1 for ev, _ in events if ev == "expand")
+    every = max(1, N // N_COARSE)
+    detail = set(range(min(5, N))) | set(range(max(0, N - 3), N))
+
+    start_node = events[0][1]["node"]
+    frames = [{"l": 0, "r": pack(problem.routes_of(start_node)),
+              "m": "Mulai: stack hanya berisi akar, belum ada incumbent.",
+              "i": _node_info(problem, start_node)}]
+    exp_i, best_g = -1, math.inf
+    for ev, d in events[1:]:
+        if ev == "expand":
+            exp_i += 1
+            node = d["node"]
+            if exp_i in detail or not exp_i % every:
+                frames.append({"l": 2, "r": pack(problem.routes_of(node)),
+                               "i": _node_info(problem, node, {"Frontier": d["frontier"]}),
+                               "m": f"Ekspansi ke-{exp_i + 1}/{N}: keluarkan node teratas stack."})
+        elif ev == "prune" and exp_i in detail:
+            node = d["node"]
+            frames.append({"l": 3, "r": pack(problem.routes_of(node)),
+                           "i": _node_info(problem, node, {"g(terbaik)": round(best_g, 4)}),
+                           "m": "g(n) >= g(terbaik): dipangkas."})
+        elif ev == "incumbent":
+            node = d["node"]
+            best_g = node.g
+            frames.append({"l": 4, "r": pack(problem.routes_of(node)), "i": _node_info(problem, node),
+                           "m": "Goal ditemukan: jadi incumbent (solusi terbaik sejauh ini)."})
+        elif ev == "child" and exp_i in detail:
+            child, kept = d["child"], d["kept"]
+            a = child.action
+            hl = [problem.schools[a - 1]] if a else []
+            msg = "Anak masuk stack." if kept else "g(anak) >= incumbent: tidak masuk stack."
+            frames.append({"l": 5, "r": pack(problem.routes_of(child)), "i": _node_info(problem, child),
+                           "m": msg, "hl": hl})
+    frames.append({"l": 6, "r": pack(res.routes), "m": "Selesai: kembalikan rute terbaik (incumbent terakhir).",
+                  "i": {"f": round(res.cost, 4), "g(n)": round(res.cost, 4),
+                        "Sekolah terlayani": f"{problem.k}/{problem.k}"}})
+    return frames, res.routes
+
+
+def pick_subproblem(inst, out):
+    """Depot sub-masalah nyata untuk tahap 2: dari penugasan terbaik Bagian B
+    (ls_best.json), ambil SPPG dengan sekolah terbanyak, dibatasi k <= 9 supaya
+    BFS/DFS-B&B tetap cepat dianimasikan (sama batas dengan run_search.py)."""
+    best = json.loads((out / "ls_best.json").read_text(encoding="utf-8"))
+    top = min((k for k in best if k not in ("best_known_fitness", "Greedy")),
+              key=lambda k: best[k]["fitness"])
+    per_depot = defaultdict(list)
+    for d, seq in best[top]["routes"]:
+        per_depot[d].extend(seq)
+    candidates = sorted(per_depot.items(), key=lambda kv: -len(kv[1]))
+    for d, schools in candidates:
+        if len(schools) <= 9:
+            return d, sorted(schools)
+    d, schools = candidates[-1]
+    return d, sorted(schools)
 
 
 # ------------------------------------------------------------------------ pengiriman
@@ -279,10 +460,10 @@ DELIVERY_CODE = [
     "for tiap Granmax (berjalan paralel):",
     "  for tiap sekolah j di rute:",
     "    jalan ke j   (waktu tempuh jalan asli, OSRM)",
-    "    tiba di j: cek t ≤ 180 menit",
+    "    tiba di j: cek t <= 180 menit",
     "    drop makanan 15 menit",
     "  kembali ke SPPG",
-    "biaya = total km ÷ 14 km/L × Rp10.000",
+    "biaya = total km / 14 km/L x Rp10.000",
 ]
 
 
@@ -324,7 +505,6 @@ class LegCache:
         keys = [f"{a}-{b}" for a, b in zip(idx[:-1], idx[1:])]
         if not all(k in self.data for k in keys):
             self._fetch(idx)
-        # kalau OSRM gagal: garis lurus (tidak disimpan ke cache, dicoba lagi lain kali)
         return [self.data.get(k) or self._straight(a, b) for k, (a, b) in zip(keys, zip(idx[:-1], idx[1:]))]
 
     def ensure(self, pairs, chunk=60):
@@ -390,30 +570,50 @@ def build(name, cfg, budget, seed):
     out.mkdir(parents=True, exist_ok=True)
     print(f"{name}: {inst.m} SPPG, {inst.n} sekolah")
 
-    algos = {}
-    for label, code, fn, args in [
-        ("Greedy", GREEDY_CODE, record_greedy, ()),
-        ("HC", HC_CODE, record_hc, (budget, seed)),
-        ("SA", SA_CODE, record_sa, (budget, seed)),
-        ("GA", GA_CODE, record_ga, (budget, seed)),
+    # ---- tahap 1: Alokasi SPPG (Bagian B)
+    alloc = {}
+    for label, code, fn in [
+        ("HC", HC_CODE, record_hc_alloc),
+        ("SA", SA_CODE, record_sa_alloc),
+        ("GA", GA_CODE, record_ga_alloc),
     ]:
         t0 = time.time()
-        frames, routes = fn(inst, w, pen, cfg, *args)
-        algos[label] = {"code": code, "frames": frames, "final": pack(routes)}
-        print(f"  {label:8} {len(frames):4} frame  ({time.time() - t0:.0f} s)")
+        params = cfg["assignment"]["algorithms"][label]
+        frames, routes = fn(inst, w, pen, budget, seed, params)
+        alloc[label] = {"code": code, "frames": frames, "final": pack(routes)}
+        print(f"  [alokasi] {label:8} {len(frames):4} frame  ({time.time() - t0:.0f} s)")
 
     legs = LegCache(inst, out / ".osrm_legs_cache.json")
-    for label, a in algos.items():
+    for label, a in alloc.items():
         routes = [(r[0], r[1:]) for r in a["final"]]
         a["delivery"] = delivery_plan(inst, routes, legs)
     legs.save()
+
+    # ---- tahap 2: Rute terbaik dalam satu SPPG (Bagian A), sub-masalah nyata
+    depot, schools = pick_subproblem(inst, out)
+    print(f"  [rute] sub-masalah: {inst.nodes[depot]['id']} ({inst.nodes[depot]['name']}), "
+          f"{len(schools)} sekolah")
+    problem = RoutingProblem(inst, depot, schools, w)
+    route = {}
+    for label, code, fn, args in [
+        ("BFS", BFS_CODE, record_bfs, ()),
+        ("UCS", UCS_CODE, record_bestfirst, ("UCS", BESTFIRST_LINES, lambda n: n.g)),
+        ("A*", ASTAR_CODE, record_bestfirst, ("A*", ASTAR_LINES, lambda n: n.g + problem.h(n.state))),
+        ("GBFS", GBFS_CODE, record_bestfirst, ("GBFS", BESTFIRST_LINES, lambda n: problem.h(n.state))),
+        ("DFS-B&B", DFSBB_CODE, record_dfsbb, ()),
+    ]:
+        t0 = time.time()
+        frames, routes = fn(problem, *args) if args else fn(problem)
+        route[label] = {"code": code, "frames": frames, "final": pack(routes)}
+        print(f"  [rute]    {label:8} {len(frames):4} frame  ({time.time() - t0:.0f} s)")
 
     data = {
         "instance": name, "m": inst.m, "n": inst.n, "Q": inst.Q, "service": inst.service,
         "max_time": inst.max_time, "w": w, "seed": seed, "budget": budget,
         "colors": DEPOT_COLORS, "delivery_code": DELIVERY_CODE,
         "nodes": [{"id": n["id"], "name": n["name"], "lat": n["lat"], "lon": n["lon"]} for n in inst.nodes],
-        "algos": algos,
+        "alloc": alloc, "route": route,
+        "route_depot": {"id": inst.nodes[depot]["id"], "name": inst.nodes[depot]["name"], "k": len(schools)},
     }
     attach_legs(data, out)
     (out / ".animasi_data.json").write_text(json.dumps(data), encoding="utf-8")
@@ -445,14 +645,15 @@ def simplify(coords, tol=5e-5):
 
 
 def attach_legs(data, out):
-    """Geometri jalan asli untuk setiap ruas yang muncul di animasi tahap 1, sehingga
+    """Geometri jalan asli untuk setiap ruas yang muncul di animasi tahap 1 & 2, sehingga
     rute di setiap frame digambar mengikuti jalan (bukan garis lurus)."""
     pairs = set()
-    for a in data["algos"].values():
-        for fr in a["frames"]:
-            for r in fr["r"]:
-                nodes = [r[0]] + [data["m"] + s for s in r[1:]] + [r[0]]
-                pairs.update(zip(nodes[:-1], nodes[1:]))
+    for group in (data["alloc"], data["route"]):
+        for a in group.values():
+            for fr in a["frames"]:
+                for r in fr["r"]:
+                    nodes = [r[0]] + [data["m"] + s for s in r[1:]] + [r[0]]
+                    pairs.update(zip(nodes[:-1], nodes[1:]))
     legs = LegCache(SimpleNamespace(nodes=data["nodes"]), out / ".osrm_legs_cache.json")
     print(f"  {len(pairs)} ruas jalan dipakai di animasi")
     legs.ensure(pairs)
@@ -484,9 +685,6 @@ def main():
         out = ROOT / "results" / name
         if args.html_only:
             data = json.loads((out / ".animasi_data.json").read_text(encoding="utf-8"))
-            if "legs" not in data:
-                attach_legs(data, out)
-                (out / ".animasi_data.json").write_text(json.dumps(data), encoding="utf-8")
             render_html(data, out / "animasi.html")
         else:
             build(name, cfg, args.budget, args.seed)

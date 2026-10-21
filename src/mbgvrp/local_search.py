@@ -89,15 +89,19 @@ class _State:
 
 
 class _Search:
-    """Kerangka bersama: hitung evaluasi, catat solusi terbaik & riwayat konvergensi."""
+    """Kerangka bersama: hitung evaluasi, catat solusi terbaik & riwayat konvergensi.
 
-    def __init__(self, prob, budget, rng, log_every=500):
+    `trace(event, **data)` opsional, hanya dipakai make_animation.py untuk merekam
+    jalannya algoritma. Callback tidak memakai rng, jadi hasil run tetap sama persis."""
+
+    def __init__(self, prob, budget, rng, log_every=500, trace=None):
         self.prob, self.budget, self.rng = prob, budget, rng
         self.R = prob.router
         self.evals = 0
         self.best_F, self.best_x = math.inf, None
         self.history, self.log_every = [], log_every
         self.extra = {}
+        self.trace = trace
 
     # ------------------------------------------------------------- evaluasi
     def _count(self, F, make_x):
@@ -186,6 +190,8 @@ class _Search:
     def climb(self, st, sideways=0):
         """Steepest-ascent hill climbing dari st sampai optimum lokal."""
         flat = 0
+        if self.trace:
+            self.trace("hc_init", x=list(st.x), F=st.F)
         while True:
             scored = self.scan(st)
             best = min(d for d, _ in scored)
@@ -195,9 +201,14 @@ class _Search:
                 flat += 1
                 self.extra["sideways"] = self.extra.get("sideways", 0) + 1
             else:
+                if self.trace:
+                    self.trace("hc_stop", x=list(st.x), F=st.F)
                 return st
             ties = [mv for d, mv in scored if d <= best + EPS]
-            self.apply(st, ties[int(self.rng.integers(len(ties)))])
+            mv = ties[int(self.rng.integers(len(ties)))]
+            if self.trace:
+                self.trace("hc_step", x=list(st.x), F=st.F, move=mv, dF=best, evals=self.evals)
+            self.apply(st, mv)
             self.extra["steps"] = self.extra.get("steps", 0) + 1
 
 
@@ -285,10 +296,18 @@ def _simulated_annealing(S, accept_prob_init=0.8, final_temp_ratio=1e-4, **_):
     remaining = max(1, S.budget - S.evals)
     alpha = final_temp_ratio ** (1.0 / remaining)
     T = T0
+    if S.trace:
+        S.trace("sa_init", x=list(st.x), F=st.F, T0=T0, alpha=alpha)
+    it = 0
     while True:
+        it += 1
         mv = S.random_move(st)
         dF = S.delta(st, mv)
-        if dF < 0 or S.rng.random() < math.exp(-dF / T):
+        accept = dF < 0 or S.rng.random() < math.exp(-dF / T)
+        if S.trace:
+            S.trace("sa_step", it=it, x=list(st.x), F=st.F, move=mv, dF=dF, T=T,
+                    accepted=accept, best_F=S.best_F, evals=S.evals)
+        if accept:
             S.apply(st, mv)
         T *= alpha
 
@@ -305,30 +324,43 @@ def _genetic(S, pop_size=100, tournament_k=3, p_crossover=0.9, n_elite=2, **_):
 
     pop = [prob.random_assignment(rng) for _ in range(pop_size)]
     fit = [evaluate(x) for x in pop]
+    gen = 0
+    if S.trace:
+        S.trace("ga_gen", gen=gen, pop=[list(p) for p in pop], fit=list(fit), evals=S.evals)
 
     def tournament():
         idx = rng.choice(pop_size, tournament_k, replace=False)
         return pop[min(idx, key=lambda i: fit[i])]   # fitness 1/F terbesar = F terkecil
 
     while True:
+        gen += 1
         order = sorted(range(pop_size), key=lambda i: fit[i])
         new_pop = [pop[i] for i in order[:n_elite]]
         new_fit = [fit[i] for i in order[:n_elite]]
         while len(new_pop) < pop_size:
             p1, p2 = tournament(), tournament()
-            if rng.random() < p_crossover:
+            crossed = rng.random() < p_crossover
+            if crossed:
                 pick = rng.random(n) < 0.5
                 child = [a if c else b for a, b, c in zip(p1, p2, pick)]
             else:
                 child = list(p1)
+            mutated = False
             for s in range(n):
                 if rng.random() < p_gene:
                     b = int(rng.integers(m - 1))
                     child[s] = b + (b >= child[s])
+                    mutated = True
+            child_f = evaluate(child)
+            if S.trace and len(new_pop) < n_elite + 3:
+                S.trace("ga_child", gen=gen, p1=list(p1), p2=list(p2), child=list(child),
+                        child_f=child_f, crossed=crossed, mutated=mutated)
             new_pop.append(child)
-            new_fit.append(evaluate(child))
+            new_fit.append(child_f)
         pop, fit = new_pop, new_fit
         S.extra["generations"] = S.extra.get("generations", 0) + 1
+        if S.trace:
+            S.trace("ga_gen", gen=gen, pop=[list(p) for p in pop], fit=list(fit), evals=S.evals)
 
 
 ALGORITHMS = {
@@ -343,12 +375,12 @@ ALGORITHMS = {
 }
 
 
-def run(name, inst, w, penalty, budget, rng, log_every=500, **params):
+def run(name, inst, w, penalty, budget, rng, log_every=500, trace=None, **params):
     """Jalankan satu algoritma Bagian B. Berhenti saat anggaran evaluasi habis atau
     (untuk varian HC tanpa restart) saat terjebak di optimum lokal."""
     start = time.perf_counter()
     prob = AssignmentProblem(inst, w, penalty)
-    S = _Search(prob, budget, rng, log_every)
+    S = _Search(prob, budget, rng, log_every, trace=trace)
     try:
         ALGORITHMS[name](S, **params)
         S.extra["stopped"] = "optimum lokal"

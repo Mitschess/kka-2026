@@ -89,8 +89,9 @@
 <header>
   <div class="title">Animasi Rute MBG <span id="sub"></span></div>
   <div class="tabs" role="tablist">
-    <button data-stage="1" class="on" role="tab">1 · Pencarian rute</button>
-    <button data-stage="2" role="tab">2 · Pengiriman</button>
+    <button data-stage="1" class="on" role="tab">1 · Alokasi SPPG</button>
+    <button data-stage="2" role="tab">2 · Rute terbaik</button>
+    <button data-stage="3" role="tab">3 · Pengiriman</button>
   </div>
   <label>Algoritma <select id="algo" aria-label="Algoritma"></select></label>
   <button id="toggleCode" aria-pressed="false">Sembunyikan kode</button>
@@ -156,7 +157,11 @@ const store = {
   set(k, v) { try { localStorage.setItem("mbg-anim-" + k, v); } catch (e) { /* abaikan */ } },
 };
 
-const S = { stage: 1, algo: "SA", frame: 0, t: 0, playing: false, last: 0, acc: 0 };
+const S = { stage: 1, algoAlloc: "SA", algoRoute: "A*", frame: 0, t: 0, playing: false, last: 0, acc: 0 };
+const isSearchStage = () => S.stage === 1 || S.stage === 2;
+const groupFor = (stage) => (stage === 2 ? DATA.route : DATA.alloc);
+const algoKeyFor = (stage) => (stage === 2 ? "algoRoute" : "algoAlloc");
+const currentSet = () => groupFor(S.stage)[S[algoKeyFor(S.stage)]];
 
 // ------------------------------------------------------------------ peta
 const map = L.map("map", { preferCanvas: true, zoomSnap: 0.25 });
@@ -189,10 +194,16 @@ $("legend").innerHTML = NODES.slice(0, M).map((n, d) => `<div><i style="backgrou
 
 // ------------------------------------------------------------------ UI umum
 $("sub").textContent = `· ${DATA.instance} (${M} SPPG, ${N} sekolah, maks ${DATA.Q} sekolah/Granmax, w = ${DATA.w})`;
-for (const a of Object.keys(DATA.algos)) $("algo").add(new Option(a, a));
-S.algo = store.get("algo", "SA");
-if (!DATA.algos[S.algo]) S.algo = "SA";
-$("algo").value = S.algo;
+S.algoAlloc = store.get("algoAlloc", "SA");
+if (!DATA.alloc[S.algoAlloc]) S.algoAlloc = Object.keys(DATA.alloc)[0];
+S.algoRoute = store.get("algoRoute", "A*");
+if (!DATA.route[S.algoRoute]) S.algoRoute = Object.keys(DATA.route)[0];
+function populateAlgo() {
+  const grp = groupFor(S.stage), key = algoKeyFor(S.stage);
+  $("algo").innerHTML = "";
+  for (const a of Object.keys(grp)) $("algo").add(new Option(a, a));
+  $("algo").value = S[key];
+}
 $("speed").value = store.get("speed", "4");
 
 function setCode(lines) {
@@ -228,7 +239,8 @@ function routePath(r) {
   return pts;
 }
 function drawSearch() {
-  const A = DATA.algos[S.algo], F = A.frames, f = F[S.frame];
+  const A = currentSet(), F = A.frames, f = F[S.frame];
+  const label = S[algoKeyFor(S.stage)];
   routeLayer.clearLayers();
   const owner = new Array(N).fill(-1);
   for (const r of f.r) {
@@ -246,9 +258,10 @@ function drawSearch() {
   $("msg").textContent = f.m;
   setInfo(f.i);
   const fv = f.i.f !== undefined ? `f = ${f.i.f}` : "";
-  $("hud").innerHTML = `<div class="sm">${S.algo} · langkah ${S.frame + 1}/${F.length}</div>
-    <div class="big">${f.i["Biaya bensin"] || "–"}</div>
-    <div class="sm">${f.i["Rata-rata tiba"] ? "rata-rata tiba " + f.i["Rata-rata tiba"] + " · " : ""}${fv}${f.i.Melanggar ? " · <b style='color:#c4314b'>melanggar " + f.i.Melanggar + "</b>" : ""}</div>`;
+  const big = f.i["Biaya bensin"] || fv || "–";
+  $("hud").innerHTML = `<div class="sm">${label} · langkah ${S.frame + 1}/${F.length}</div>
+    <div class="big">${big}</div>
+    <div class="sm">${f.i["Rata-rata tiba"] ? "rata-rata tiba " + f.i["Rata-rata tiba"] + " · " : ""}${f.i["Biaya bensin"] ? fv : ""}${f.i.Melanggar ? " · <b style='color:#c4314b'>melanggar " + f.i.Melanggar + "</b>" : ""}</div>`;
   $("scrub").max = F.length - 1; $("scrub").value = S.frame;
   $("pos").textContent = `langkah ${S.frame + 1} / ${F.length}`;
 }
@@ -285,7 +298,7 @@ function clockStr(t) {
   return String(Math.floor(tot / 60) % 24).padStart(2, "0") + ":" + String(tot % 60).padStart(2, "0");
 }
 function setupDelivery() {
-  plan = DATA.algos[S.algo].delivery;
+  plan = DATA.alloc[S.algoAlloc].delivery;
   roadLayer.clearLayers(); vanLayer.clearLayers(); events = [];
   for (const v of plan.veh) {
     for (const seg of v.segs) {
@@ -376,29 +389,29 @@ function drawDelivery() {
     "Sekolah terakhir tiba": `${plan.makespan} mnt` });
   $("log").innerHTML = past.slice(-40).reverse()
     .map((e) => `<div><span class="t">${clockStr(e.t)}</span>${evText(e)}</div>`).join("");
-  $("hud").innerHTML = `<div class="sm">${S.algo} · pengiriman</div><div class="big">${clockStr(t)}</div>
+  $("hud").innerHTML = `<div class="sm">${S.algoAlloc} · pengiriman</div><div class="big">${clockStr(t)}</div>
     <div class="sm">t = ${t.toFixed(1)} mnt · ${done}/${N} sekolah terlayani · ${km.toFixed(1)} km</div>`;
   $("scrub").max = Math.ceil(plan.T * 10); $("scrub").value = Math.round(t * 10);
   $("pos").textContent = `t = ${t.toFixed(1)} / ${plan.T.toFixed(1)} mnt`;
 }
 
 // ------------------------------------------------------------------ kontrol
-function render() { if (S.stage === 1) drawSearch(); else drawDelivery(); }
+function render() { if (isSearchStage()) drawSearch(); else drawDelivery(); }
 function setPlaying(p) {
   S.playing = p;
   $("bPlay").textContent = p ? "⏸ Jeda" : "▶ Putar";
   if (p) { S.last = performance.now(); S.acc = 0; requestAnimationFrame(tick); }
 }
 function atEnd() {
-  return S.stage === 1 ? S.frame >= DATA.algos[S.algo].frames.length - 1 : S.t >= plan.T;
+  return isSearchStage() ? S.frame >= currentSet().frames.length - 1 : S.t >= plan.T;
 }
 function tick(now) {
   if (!S.playing) return;
   const dt = Math.min(0.25, (now - S.last) / 1000); S.last = now;
   const sp = +$("speed").value;
-  if (S.stage === 1) {
+  if (isSearchStage()) {
     S.acc += dt * FPS[sp];
-    if (S.acc >= 1) { S.frame = Math.min(S.frame + Math.floor(S.acc), DATA.algos[S.algo].frames.length - 1); S.acc %= 1; render(); }
+    if (S.acc >= 1) { S.frame = Math.min(S.frame + Math.floor(S.acc), currentSet().frames.length - 1); S.acc %= 1; render(); }
   } else {
     S.t = Math.min(plan.T, S.t + dt * MPS[sp]); render();
   }
@@ -407,8 +420,8 @@ function tick(now) {
 }
 function step(dir) {
   setPlaying(false);
-  if (S.stage === 1) {
-    S.frame = Math.max(0, Math.min(DATA.algos[S.algo].frames.length - 1, S.frame + dir));
+  if (isSearchStage()) {
+    S.frame = Math.max(0, Math.min(currentSet().frames.length - 1, S.frame + dir));
   } else {
     const times = [0, ...events.map((e) => e.t), plan.T];
     S.t = dir > 0 ? (times.find((x) => x > S.t + 1e-6) ?? plan.T)
@@ -420,7 +433,7 @@ $("bPlay").onclick = () => { if (!S.playing && atEnd()) { S.frame = 0; S.t = 0; 
 $("bFwd").onclick = () => step(1);
 $("bBack").onclick = () => step(-1);
 $("bReset").onclick = () => { setPlaying(false); S.frame = 0; S.t = 0; render(); };
-$("scrub").oninput = () => { setPlaying(false); if (S.stage === 1) S.frame = +$("scrub").value; else S.t = +$("scrub").value / 10; render(); };
+$("scrub").oninput = () => { setPlaying(false); if (isSearchStage()) S.frame = +$("scrub").value; else S.t = +$("scrub").value / 10; render(); };
 $("speed").oninput = () => store.set("speed", $("speed").value);
 $("clock0").onchange = render;
 document.addEventListener("keydown", (e) => {
@@ -432,19 +445,27 @@ document.addEventListener("keydown", (e) => {
 
 function enter() {
   setPlaying(false);
-  const A = DATA.algos[S.algo];
+  populateAlgo();
   document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("on", +b.dataset.stage === S.stage));
   routeLayer.clearLayers(); roadLayer.clearLayers(); vanLayer.clearLayers();
-  $("logSec").style.display = S.stage === 2 ? "" : "none";
-  if (S.stage === 1) {
+  $("logSec").style.display = S.stage === 3 ? "" : "none";
+  if (isSearchStage()) {
+    const A = currentSet();
     S.frame = 0;
-    $("codeTitle").textContent = `Pseudocode · ${S.algo}`;
+    const label = S[algoKeyFor(S.stage)];
+    $("codeTitle").textContent = `Pseudocode · ${label}`;
     setCode(A.code);
-    $("note").textContent = "Rute digambar mengikuti jalan asli (OSRM). Garis putus-putus = rute melebihi kapasitas."
-      + ` Run: seed ${DATA.seed}, ${DATA.budget.toLocaleString("id-ID")} evaluasi.`;
+    if (S.stage === 2) {
+      const rd = DATA.route_depot;
+      $("note").textContent = `Sub-masalah nyata: ${rd.id} (${rd.name}), ${rd.k} sekolah dari penugasan terbaik `
+        + "Bagian B. Rute mengikuti jalan asli (OSRM).";
+    } else {
+      $("note").textContent = "Rute tiap SPPG dihitung optimal (Router) di setiap langkah, jadi peta selalu "
+        + `solusi lengkap. Run: seed ${DATA.seed}, ${DATA.budget.toLocaleString("id-ID")} evaluasi.`;
+    }
   } else {
     S.t = 0;
-    $("codeTitle").textContent = `Simulasi pengiriman · rute terbaik ${S.algo}`;
+    $("codeTitle").textContent = `Simulasi pengiriman · rute terbaik ${S.algoAlloc}`;
     setCode(DATA.delivery_code);
     $("note").textContent = "Garis = jalan asli (OSRM). Titik sekolah terisi warna saat makanan sudah tiba.";
     setupDelivery();
@@ -452,16 +473,22 @@ function enter() {
   render();
 }
 document.querySelectorAll(".tabs button").forEach((b) => b.onclick = () => { S.stage = +b.dataset.stage; enter(); });
-$("algo").onchange = () => { S.algo = $("algo").value; store.set("algo", S.algo); enter(); };
+$("algo").onchange = () => {
+  const key = algoKeyFor(S.stage);
+  S[key] = $("algo").value;
+  store.set(key, S[key]);
+  enter();
+};
 
-// tautan langsung, mis. animasi.html#stage=2&algo=GA&t=30&code=0  (stage 1: frame=…)
+// tautan langsung, mis. animasi.html#stage=2&algoRoute=A*&frame=30&code=0
 const H = new URLSearchParams(location.hash.slice(1));
-if (DATA.algos[H.get("algo")]) { S.algo = H.get("algo"); $("algo").value = S.algo; }
-if (H.get("stage") === "2") S.stage = 2;
+if (DATA.alloc[H.get("algoAlloc")]) S.algoAlloc = H.get("algoAlloc");
+if (DATA.route[H.get("algoRoute")]) S.algoRoute = H.get("algoRoute");
+if (["1", "2", "3"].includes(H.get("stage"))) S.stage = +H.get("stage");
 setCodeHidden(H.has("code") ? H.get("code") === "0" : store.get("nocode", "0") === "1");
 enter();
-if (S.stage === 1 && H.has("frame")) { S.frame = Math.min(+H.get("frame"), DATA.algos[S.algo].frames.length - 1); render(); }
-if (S.stage === 2 && H.has("t")) { S.t = Math.min(+H.get("t"), plan.T); render(); }
+if (isSearchStage() && H.has("frame")) { S.frame = Math.min(+H.get("frame"), currentSet().frames.length - 1); render(); }
+if (S.stage === 3 && H.has("t")) { S.t = Math.min(+H.get("t"), plan.T); render(); }
 </script>
 </body>
 </html>

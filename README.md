@@ -92,7 +92,7 @@ run_assignment.py        eksperimen Bagian B (paralel, checkpoint) + sweep bobot
 run_search.py            eksperimen Bagian A (sub-masalah nyata + skalabilitas)
 run_experiments.py       eksperimen pembanding terintegrasi (Greedy, HC, SA, GA)
 run_sensitivity.py       analisis sensitivitas (kapasitas, kemacetan, km/L)
-make_animation.py        animasi gaya VisuAlgo (pencarian rute + pengiriman)
+make_animation.py        animasi gaya VisuAlgo (alokasi SPPG + rute terbaik + pengiriman)
 scripts/compare_models.py komparasi semua model di semua instance
 results/<instance>/      hasil: CSV, grafik PNG, peta_rute.html, animasi.html, best_routes.txt
 results/komparasi_model.md  tabel perbandingan model (karakteristik + hasil + uji statistik)
@@ -134,17 +134,27 @@ Di peta, rute tiap algoritma bisa dinyalakan/dimatikan lewat panel layer.
 
 ### Animasi (`results/<instance>/animasi.html`)
 
-Dua tahap, pilih algoritma di kanan atas:
-1. **Pencarian rute**: langkah demi langkah Greedy / HC / SA / GA. Baris pseudocode
-   yang sedang dijalankan di-highlight, rute di peta berubah mengikuti solusi saat itu.
-2. **Pengiriman**: Granmax bergerak di jalan asli dari SPPG ke sekolah dengan jam berjalan.
+Tiga tahap, pilih algoritma di kanan atas:
+1. **Alokasi SPPG** (Bagian B): langkah demi langkah HC / SA / GA menugaskan sekolah ke SPPG.
+   Rute tiap SPPG dihitung optimal (Router) di setiap langkah, jadi peta selalu solusi lengkap.
+2. **Rute terbaik** (Bagian A): langkah demi langkah BFS / UCS / A* / GBFS / DFS-B&B mencari rute
+   di satu sub-masalah nyata (SPPG dengan sekolah terbanyak dari penugasan terbaik tahap 1,
+   dibatasi k <= 9). Baris pseudocode yang sedang dijalankan di-highlight.
+3. **Pengiriman**: Granmax bergerak di jalan asli dari SPPG ke sekolah dengan jam berjalan,
+   memakai solusi terbaik tahap 1 (HC/SA/GA).
 
 Tombol *Sembunyikan kode* menyembunyikan panel pseudocode. Kontrol: spasi = putar/jeda,
-panah kiri/kanan = langkah. Tautan langsung juga bisa, misalnya `animasi.html#stage=2&algo=GA&t=30`.
-Run HC/SA/GA di animasi sama persis dengan run seed 1 di eksperimen (`trace` tidak memakai rng).
+panah kiri/kanan = langkah. Tautan langsung juga bisa, misalnya
+`animasi.html#stage=2&algoRoute=A*&frame=30`. Run HC/SA/GA/BFS/UCS/A*/GBFS/DFS-B&B di animasi
+sama persis dengan run seed 1 di eksperimen (`trace` tidak memakai rng).
 Setelah mengubah template, cukup `python make_animation.py --html-only`.
 
 ## Deploy hasil ke web (Vercel)
+
+Halaman depan (`site/index.html`) menampilkan dua case: Alokasi SPPG (HC/SA/GA, dari
+`run_assignment.py`) dan Rute terbaik (BFS/UCS/A*/GBFS/DFS-B&B, diagregasi dari
+`results/search_real.csv`, dari `run_search.py`). Pembanding terintegrasi
+(`run_experiments.py`) tetap jalan standalone tapi tidak ditampilkan di web.
 
 Semua hasil adalah file statis, jadi cukup dihosting tanpa server:
 

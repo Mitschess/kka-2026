@@ -255,11 +255,16 @@ def _new_stats():
 
 
 # ============================================================== pencarian buta
-def breadth_first(problem, max_nodes=2_000_000):
+def breadth_first(problem, max_nodes=2_000_000, trace=None):
     """BFS (graph search, goal test saat dibangkitkan): menemukan solusi dengan
-    jumlah langkah paling sedikit = Granmax paling sedikit, bukan yang termurah."""
+    jumlah langkah paling sedikit = Granmax paling sedikit, bukan yang termurah.
+
+    `trace(event, **data)` opsional, hanya dipakai make_animation.py untuk merekam
+    jalannya algoritma. Tidak memakai rng, jadi hasil run tidak berubah."""
     start, stats = time.perf_counter(), _new_stats()
     root = _Node(problem.initial)
+    if trace:
+        trace("start", node=root)
     if problem.is_goal(root.state):
         return problem._result("BFS", root, stats, start)
     frontier, reached = deque([root]), {problem.key(root.state)}
@@ -267,13 +272,20 @@ def breadth_first(problem, max_nodes=2_000_000):
         while frontier:
             node = frontier.popleft()
             stats["expanded"] += 1
+            if trace:
+                trace("expand", node=node, frontier=len(frontier))
             for child in _children(problem, node, stats, max_nodes):
                 if problem.is_goal(child.state):
+                    if trace:
+                        trace("goal", node=child)
                     return problem._result("BFS", child, stats, start)
                 k = problem.key(child.state)
-                if k not in reached:
+                kept = k not in reached
+                if kept:
                     reached.add(k)
                     frontier.append(child)
+                if trace:
+                    trace("child", parent=node, child=child, kept=kept)
             stats["max_stored"] = max(stats["max_stored"], len(reached))
     except _Limit:
         return problem._result("BFS", None, stats, start, "batas")
@@ -304,24 +316,35 @@ def iterative_deepening(problem, max_nodes=20_000_000):
     return problem._result("IDS", None, stats, start)
 
 
-def dfs_branch_and_bound(problem, max_nodes=20_000_000):
+def dfs_branch_and_bound(problem, max_nodes=20_000_000, trace=None):
     """DFS + Branch and Bound: telusuri dalam-dulu (anak termurah dulu), simpan
     solusi terbaik sejauh ini, pangkas cabang yang biayanya sudah >= solusi itu."""
     start, stats = time.perf_counter(), _new_stats()
     best, n_sol = None, 0
     stack = [_Node(problem.initial)]
+    if trace:
+        trace("start", node=stack[0])
     try:
         while stack:
             node = stack.pop()
             if best is not None and node.g >= best.g:
+                if trace:
+                    trace("prune", node=node, best=best)
                 continue
             if problem.is_goal(node.state):
                 best, n_sol = node, n_sol + 1
+                if trace:
+                    trace("incumbent", node=node)
                 continue
             stats["expanded"] += 1
+            if trace:
+                trace("expand", node=node, frontier=len(stack))
             kids = _children(problem, node, stats, max_nodes)
             kids.sort(key=lambda c: -c.g)   # termurah paling atas tumpukan
             stack.extend(c for c in kids if best is None or c.g < best.g)
+            if trace:
+                for c in kids:
+                    trace("child", parent=node, child=c, kept=(best is None or c.g < best.g))
             stats["max_stored"] = max(stats["max_stored"], len(stack))
     except _Limit:
         return problem._result("DFS-B&B", best, stats, start, "batas", {"incumbents": n_sol})
@@ -329,52 +352,61 @@ def dfs_branch_and_bound(problem, max_nodes=20_000_000):
 
 
 # ======================================================== best-first search
-def _best_first(problem, name, f, max_nodes):
+def _best_first(problem, name, f, max_nodes, trace=None):
     """Best-first graph search (AIMA): ambil node dengan f terkecil; jalur yang
     lebih murah ke keadaan yang sama menggantikan jalur lama."""
     start, stats = time.perf_counter(), _new_stats()
     root = _Node(problem.initial)
     reached = {problem.key(root.state): root}
     frontier, tie = [(f(root), 0, root)], 1
+    if trace:
+        trace("start", node=root)
     try:
         while frontier:
             _, _, node = heapq.heappop(frontier)
             if reached.get(problem.key(node.state)) is not node:
                 continue   # sudah ada jalur lebih murah ke keadaan ini
             if problem.is_goal(node.state):
+                if trace:
+                    trace("goal", node=node)
                 return problem._result(name, node, stats, start)
             stats["expanded"] += 1
+            if trace:
+                trace("expand", node=node, frontier=len(frontier))
             for child in _children(problem, node, stats, max_nodes):
                 k = problem.key(child.state)
                 old = reached.get(k)
-                if old is None or child.g < old.g:
+                kept = old is None or child.g < old.g
+                if kept:
                     reached[k] = child
                     heapq.heappush(frontier, (f(child), tie, child))
                     tie += 1
+                if trace:
+                    trace("child", parent=node, child=child, kept=kept)
             stats["max_stored"] = max(stats["max_stored"], len(reached))
     except _Limit:
         return problem._result(name, None, stats, start, "batas")
     return problem._result(name, None, stats, start)
 
 
-def uniform_cost(problem, max_nodes=5_000_000):
+def uniform_cost(problem, max_nodes=5_000_000, trace=None):
     """UCS: f(n) = g(n), biaya jalur sejauh ini. Optimal."""
-    return _best_first(problem, "UCS", lambda n: n.g, max_nodes)
+    return _best_first(problem, "UCS", lambda n: n.g, max_nodes, trace)
 
 
-def astar(problem, max_nodes=5_000_000):
+def astar(problem, max_nodes=5_000_000, trace=None):
     """A*: f(n) = g(n) + h(n), h admissible -> optimal dengan ekspansi lebih sedikit."""
-    return _best_first(problem, "A*", lambda n: n.g + problem.h(n.state), max_nodes)
+    return _best_first(problem, "A*", lambda n: n.g + problem.h(n.state), max_nodes, trace)
 
 
-def astar_h1(problem, max_nodes=5_000_000):
+def astar_h1(problem, max_nodes=5_000_000, trace=None):
     """A* dengan heuristik sederhana h1 (pembanding kekuatan heuristik)."""
-    return _best_first(problem, "A* (h1)", lambda n: n.g + problem.h_nearest(n.state), max_nodes)
+    return _best_first(problem, "A* (h1)", lambda n: n.g + problem.h_nearest(n.state), max_nodes, trace)
 
 
-def greedy_best_first(problem, max_nodes=5_000_000):
+def greedy_best_first(problem, max_nodes=5_000_000, trace=None):
     """Greedy best-first: f(n) = h(n) saja. Cepat, tidak menjamin optimal."""
-    return _best_first(problem, "GBFS", lambda n: problem.h(n.state), max_nodes)
+    return _best_first(problem, "GBFS", lambda n: problem.h(n.state), max_nodes, trace)
 
 
 SEARCHES = {
