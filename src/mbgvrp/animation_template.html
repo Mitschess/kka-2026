@@ -4,16 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Animasi Rute MBG</title>
-<meta name="theme-color" content="#0a0c0f">
+<meta name="theme-color" content="#f4f4f1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230a0c0f'/%3E%3Cpath d='M8 22c4-1 4-9 8-10s5 6 8 4' fill='none' stroke='%231baf7a' stroke-width='3' stroke-linecap='round'/%3E%3Ccircle cx='8' cy='22' r='3' fill='%232a78d6'/%3E%3Ccircle cx='24' cy='16' r='3' fill='%23eb6834'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<script>
-  try { const t = localStorage.getItem("mbg-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) { /* abaikan */ }
-</script>
 <style>
   :root {
     color-scheme: light;
@@ -22,22 +19,6 @@
     --hl: #fff1c2; --hl-ink: #5c4100; --hl-bar: #eda100; --code-bg: #fbfbf9;
     --good: #0ca30c; --good-ink: #006300; --warn: #fab219; --bad: #d03b3b;
     --glass: rgba(255, 255, 255, .9); --shadow: 0 1px 2px rgba(0, 0, 0, .05), 0 12px 30px -12px rgba(0, 0, 0, .18);
-  }
-  @media (prefers-color-scheme: dark) {
-    :root:where(:not([data-theme="light"])) {
-      color-scheme: dark;
-      --bg: #0d0d0d; --surface: #171716; --surface-2: #21211f; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #8f8d86; --line: #2c2c2a;
-      --btn: #f0efec; --btn-ink: #0b0b0b; --hover: rgba(255, 255, 255, .06); --ring: rgba(255, 255, 255, .10);
-      --hl: rgba(237, 161, 0, .16); --hl-ink: #ffd36b; --code-bg: #121211;
-      --good-ink: #3fc23f; --glass: rgba(23, 23, 22, .88); --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 12px 30px -12px rgba(0, 0, 0, .7);
-    }
-  }
-  :root[data-theme="dark"] {
-    color-scheme: dark;
-    --bg: #0d0d0d; --surface: #171716; --surface-2: #21211f; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #8f8d86; --line: #2c2c2a;
-    --btn: #f0efec; --btn-ink: #0b0b0b; --hover: rgba(255, 255, 255, .06); --ring: rgba(255, 255, 255, .10);
-    --hl: rgba(237, 161, 0, .16); --hl-ink: #ffd36b; --code-bg: #121211;
-    --good-ink: #3fc23f; --glass: rgba(23, 23, 22, .88); --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 12px 30px -12px rgba(0, 0, 0, .7);
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
@@ -193,7 +174,6 @@
   <div class="seg" id="algo" role="group" aria-label="Algoritma"></div>
   <button class="iconbtn" id="toggleCode" aria-pressed="false" title="Sembunyikan panel kode" aria-label="Sembunyikan panel kode">
     <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10 2.5v11" stroke="currentColor" stroke-width="1.5"/></svg></button>
-  <button class="iconbtn" id="themeBtn" aria-label="Ganti tema terang/gelap" title="Ganti tema"></button>
 </header>
 <main>
   <div id="mapwrap">
@@ -265,22 +245,16 @@ const store = {
   get(k, def) { try { const v = localStorage.getItem("mbg-anim-" + k); return v === null ? def : v; } catch (e) { return def; } },
   set(k, v) { try { localStorage.setItem("mbg-anim-" + k, v); } catch (e) { /* abaikan */ } },
 };
-const isDark = () => {
-  const t = document.documentElement.dataset.theme;
-  return t ? t === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
-};
 
 const S = { stage: 1, algoRoute: "A*", frame: 0, t: 0, playing: false, last: 0, acc: 0 };
 const isSearchStage = () => S.stage === 1;
 const WIDE = matchMedia("(min-width: 821px)");
 const currentSet = () => DATA.route[S.algoRoute];
 
-// ------------------------------------------------------------------ ikon & tema
+// ------------------------------------------------------------------ ikon
 const ICON = {
   play: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 2.8v10.4a.6.6 0 0 0 .9.5l8.3-5.2a.6.6 0 0 0 0-1L5.4 2.3a.6.6 0 0 0-.9.5z" fill="currentColor"/></svg>',
   pause: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="2.5" width="3.2" height="11" rx="1" fill="currentColor"/><rect x="9.3" y="2.5" width="3.2" height="11" rx="1" fill="currentColor"/></svg>',
-  sun: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
-  moon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>',
 };
 
 // ------------------------------------------------------------------ peta
@@ -288,25 +262,14 @@ const map = L.map("map", { preferCanvas: true, zoomSnap: 0.25 });
 let tiles = [];
 function setTiles() {
   tiles.forEach((t) => map.removeLayer(t));
-  const v = isDark() ? "Dark" : "Light";
-  const url = (x) => `https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_${v}_Gray_${x}/MapServer/tile/{z}/{y}/{x}`;
+  const url = (x) => `https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_${x}/MapServer/tile/{z}/{y}/{x}`;
   tiles = [L.tileLayer(url("Base"), { maxNativeZoom: 16, maxZoom: 19, attribution: "Tiles &copy; Esri" }),
     L.tileLayer(url("Reference"), { maxNativeZoom: 16, maxZoom: 19, opacity: 0.8 })];
   tiles.forEach((t) => t.addTo(map).bringToBack());
 }
 setTiles();
 map.fitBounds(L.latLngBounds(NODES.map((n) => [n.lat, n.lon])).pad(0.08));
-function themeIcon() { $("themeBtn").innerHTML = isDark() ? ICON.sun : ICON.moon; }
-$("themeBtn").onclick = () => {
-  const next = isDark() ? "light" : "dark";
-  document.documentElement.dataset.theme = next;
-  try { localStorage.setItem("mbg-theme", next); } catch (e) { /* abaikan */ }
-  onTheme();
-};
-matchMedia("(prefers-color-scheme: dark)").addEventListener("change", onTheme);
-function onTheme() { themeIcon(); setTiles(); render(); }
-themeIcon();
-const schoolFill = () => (isDark() ? "#171716" : "#ffffff");
+const schoolFill = () => "#ffffff";
 
 const roadLayer = L.layerGroup().addTo(map);
 const routeLayer = L.layerGroup().addTo(map);

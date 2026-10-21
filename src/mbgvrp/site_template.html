@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rute MBG Surabaya</title>
 <meta name="description" content="Optimasi distribusi Makan Bergizi Gratis dari SPPG ke sekolah di Surabaya: rute Granmax terbaik dengan algoritma pencarian (BFS, IDS, DFS + B&B, UCS, A*, Greedy best-first).">
-<meta name="theme-color" content="#0a0c0f">
+<meta name="theme-color" content="#f7f7f4">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230a0c0f'/%3E%3Cpath d='M8 22c4-1 4-9 8-10s5 6 8 4' fill='none' stroke='%231baf7a' stroke-width='3' stroke-linecap='round'/%3E%3Ccircle cx='8' cy='22' r='3' fill='%232a78d6'/%3E%3Ccircle cx='24' cy='16' r='3' fill='%23eb6834'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,7 +14,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
   document.documentElement.classList.add("js");
-  try { const t = localStorage.getItem("mbg-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) { /* abaikan */ }
 </script>
 <style>
   :root {
@@ -29,29 +28,6 @@
     --shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 10px 30px -12px rgba(0, 0, 0, .12);
     --radius: 16px;
   }
-  @media (prefers-color-scheme: dark) {
-    :root:where(:not([data-theme="light"])) {
-      color-scheme: dark;
-      --page: #0d0d0d; --surface: #171716; --surface-2: #21211f; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #8f8d86;
-      --line: #2c2c2a; --grid: #262624; --axis: #3d3d3a; --ring: rgba(255, 255, 255, .10); --hover: rgba(255, 255, 255, .06);
-      --btn: #f0efec; --btn-ink: #0b0b0b; --tip: #f0efec; --tip-ink: #0b0b0b;
-      --good-ink: #3fc23f; --good-bg: rgba(12, 163, 12, .15); --warn-ink: #fab219; --warn-bg: rgba(250, 178, 25, .13);
-      --bad-ink: #f09a76; --bad-bg: rgba(236, 131, 90, .14);
-      --c1: #3987e5; --c2: #d95926; --c3: #199e70; --c4: #c98500; --c5: #d55181; --c6: #008300; --c7: #9085e9;
-      --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 10px 30px -12px rgba(0, 0, 0, .6);
-    }
-  }
-  :root[data-theme="dark"] {
-    color-scheme: dark;
-    --page: #0d0d0d; --surface: #171716; --surface-2: #21211f; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #8f8d86;
-    --line: #2c2c2a; --grid: #262624; --axis: #3d3d3a; --ring: rgba(255, 255, 255, .10); --hover: rgba(255, 255, 255, .06);
-    --btn: #f0efec; --btn-ink: #0b0b0b; --tip: #f0efec; --tip-ink: #0b0b0b;
-    --good-ink: #3fc23f; --good-bg: rgba(12, 163, 12, .15); --warn-ink: #fab219; --warn-bg: rgba(250, 178, 25, .13);
-    --bad-ink: #f09a76; --bad-bg: rgba(236, 131, 90, .14);
-    --c1: #3987e5; --c2: #d95926; --c3: #199e70; --c4: #c98500; --c5: #d55181; --c6: #008300; --c7: #9085e9;
-    --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 10px 30px -12px rgba(0, 0, 0, .6);
-  }
-
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; scroll-padding-top: 72px; }
   body { margin: 0; background: var(--page); color: var(--ink); -webkit-font-smoothing: antialiased;
@@ -87,46 +63,46 @@
   .iconbtn svg { width: 18px; height: 18px; }
 
   /* ------------------------------------------------------------ hero */
-  .hero { position: relative; overflow: hidden; isolation: isolate; background: #0a0c0f; color: #f4f4f1; }
+  .hero { position: relative; overflow: hidden; isolation: isolate; background: var(--page); color: var(--ink); border-bottom: 1px solid var(--line); }
   .hero::before { content: ""; position: absolute; inset: 0; z-index: -3;
-    background: radial-gradient(55% 70% at 72% 38%, rgba(42, 120, 214, .22), transparent 62%),
-                radial-gradient(35% 45% at 96% 92%, rgba(235, 104, 52, .16), transparent 65%),
-                radial-gradient(30% 40% at 52% 100%, rgba(27, 175, 122, .14), transparent 70%); }
+    background: radial-gradient(55% 70% at 72% 38%, rgba(42, 120, 214, .10), transparent 62%),
+                radial-gradient(35% 45% at 96% 92%, rgba(235, 104, 52, .09), transparent 65%),
+                radial-gradient(30% 40% at 52% 100%, rgba(27, 175, 122, .08), transparent 70%); }
   .hero::after { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
-    background: linear-gradient(90deg, #0a0c0f 26%, rgba(10, 12, 15, .72) 46%, rgba(10, 12, 15, 0) 70%); }
+    background: linear-gradient(90deg, #f7f7f4 30%, rgba(247, 247, 244, .6) 44%, rgba(247, 247, 244, 0) 56%); }
   .hero-art { position: absolute; right: -2%; top: 0; width: 68%; height: 100%; z-index: -2; }
   .hero-art .rt { fill: none; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; opacity: .95; }
-  .hero-art .glow { fill: none; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; opacity: .35; }
+  .hero-art .glow { fill: none; stroke-width: 9; stroke-linecap: round; stroke-linejoin: round; opacity: .14; }
   .hero-art .draw { stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw 2.6s cubic-bezier(.45, 0, .2, 1) forwards; }
   @keyframes draw { to { stroke-dashoffset: 0; } }
-  .hero-art .school { fill: #f4f4f1; opacity: 0; animation: pop .5s ease forwards; }
-  @keyframes pop { from { opacity: 0; } to { opacity: .92; } }
+  .hero-art .school { fill: #ffffff; stroke: #77766f; stroke-width: 1.5; opacity: 0; animation: pop .5s ease forwards; }
+  @keyframes pop { from { opacity: 0; } to { opacity: 1; } }
   .hero-art .depot-pulse { transform-box: fill-box; transform-origin: center; animation: pulse 2.4s ease-out infinite; }
   @keyframes pulse { 0% { transform: scale(1); opacity: .7; } 100% { transform: scale(3.2); opacity: 0; } }
   .hero-inner { position: relative; padding: 92px 0 64px; max-width: 640px; }
-  .eyebrow { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 600; color: #c9c8c2;
-             border: 1px solid rgba(255, 255, 255, .14); background: rgba(255, 255, 255, .04); padding: 5px 12px 5px 9px; border-radius: 999px; }
-  .eyebrow i { width: 8px; height: 8px; border-radius: 50%; background: #1baf7a; box-shadow: 0 0 0 4px rgba(27, 175, 122, .2); }
+  .eyebrow { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 600; color: var(--ink-2);
+             border: 1px solid var(--line); background: var(--surface); padding: 5px 12px 5px 9px; border-radius: 999px; }
+  .eyebrow i { width: 8px; height: 8px; border-radius: 50%; background: #1baf7a; box-shadow: 0 0 0 4px rgba(27, 175, 122, .18); }
   .hero h1 { font-size: clamp(34px, 5.4vw, 60px); line-height: 1.04; letter-spacing: -.035em; font-weight: 800; margin: 20px 0 18px; }
-  .hero h1 .grad { background: linear-gradient(92deg, #6fb0ff 0%, #3fd6a0 48%, #ff9a6a 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
-  .hero .lead { font-size: 17px; color: #c9c8c2; max-width: 560px; margin: 0 0 28px; }
-  .hero .lead b { color: #f4f4f1; font-weight: 600; }
+  .hero h1 .grad { background: linear-gradient(92deg, #2a78d6 0%, #12a06e 50%, #e4622d 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .hero .lead { font-size: 17px; color: var(--ink-2); max-width: 560px; margin: 0 0 28px; }
+  .hero .lead b { color: var(--ink); font-weight: 600; }
   .ctas { display: flex; flex-wrap: wrap; gap: 10px; }
   .btn { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14.5px; text-decoration: none; padding: 12px 18px;
          border-radius: 12px; border: 1px solid transparent; cursor: pointer; transition: transform .15s, background .15s, border-color .15s, box-shadow .15s; }
   .btn:hover { transform: translateY(-1px); }
-  .btn.light { background: #f4f4f1; color: #0a0c0f; box-shadow: 0 8px 30px -8px rgba(111, 176, 255, .55); }
-  .btn.ghost { color: #f4f4f1; border-color: rgba(255, 255, 255, .2); background: rgba(255, 255, 255, .03); }
-  .btn.ghost:hover { border-color: rgba(255, 255, 255, .4); }
+  .btn.light { background: var(--btn); color: var(--btn-ink); box-shadow: 0 10px 24px -12px rgba(42, 120, 214, .7); }
+  .btn.ghost { color: var(--ink); border-color: var(--line); background: var(--surface); }
+  .btn.ghost:hover { border-color: var(--axis); }
   .btn.solid { background: var(--btn); color: var(--btn-ink); }
   .btn.outline { border-color: var(--line); background: var(--surface); color: var(--ink); }
   .btn.outline:hover { border-color: var(--axis); }
   .btn svg { width: 16px; height: 16px; }
   .hero-stats { display: grid; grid-template-columns: repeat(4, auto); gap: 8px 36px; margin-top: 46px; justify-content: start; }
-  .hero-stats div { border-left: 1px solid rgba(255, 255, 255, .16); padding-left: 14px; }
+  .hero-stats div { border-left: 1px solid var(--line); padding-left: 14px; }
   .hero-stats b { display: block; font-size: 28px; font-weight: 800; letter-spacing: -.02em; line-height: 1.15; }
-  .hero-stats span { font-size: 12.5px; color: #a9a8a2; }
-  .hero-cap { position: absolute; right: 20px; bottom: 16px; font-size: 11.5px; color: #8b8a85; display: flex; align-items: center; gap: 6px; }
+  .hero-stats span { font-size: 12.5px; color: var(--muted); }
+  .hero-cap { position: absolute; right: 20px; bottom: 16px; font-size: 11.5px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
   .hero-cap i { width: 14px; height: 3px; border-radius: 2px; background: linear-gradient(90deg, #2a78d6, #1baf7a, #eb6834); }
 
   /* ------------------------------------------------------------ bagian */
@@ -318,17 +294,17 @@
   /* ------------------------------------------------------------ animasi & unduhan */
   .anim-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   .anim { padding: 0; overflow: hidden; display: flex; flex-direction: column; }
-  .anim .art { height: 190px; background: #0a0c0f; position: relative; overflow: hidden; }
+  .anim .art { height: 190px; background: var(--surface-2); border-bottom: 1px solid var(--line); position: relative; overflow: hidden; }
   .anim .art svg { position: absolute; inset: 0; width: 100%; height: 100%; }
   .anim .body { padding: 20px 22px 22px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
   .anim .body p { margin: 0; color: var(--ink-2); font-size: 14.5px; }
   .anim .row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; padding-top: 6px; align-items: center; }
   .anim .row .chip { box-shadow: none; }
-  .tree circle { fill: #2a2d33; stroke: #3a3e46; stroke-width: 1.5; animation: lit 4.8s infinite; }
-  .tree line { stroke: #2f333a; stroke-width: 1.5; }
-  @keyframes lit { 0%, 8% { fill: #2a2d33; } 14%, 70% { fill: #eda100; stroke: #ffd36b; } 80%, 100% { fill: #2a2d33; } }
+  .tree circle { fill: #ffffff; stroke: #c9c7c0; stroke-width: 1.5; animation: lit 4.8s infinite; }
+  .tree line { stroke: #d3d1ca; stroke-width: 1.5; }
+  @keyframes lit { 0%, 8% { fill: #ffffff; } 14%, 70% { fill: #eda100; stroke: #c98500; } 80%, 100% { fill: #ffffff; } }
   .tree circle.goal { animation-name: goal; }
-  @keyframes goal { 0%, 60% { fill: #2a2d33; } 66%, 92% { fill: #3fd6a0; stroke: #a5f3d6; } 100% { fill: #2a2d33; } }
+  @keyframes goal { 0%, 60% { fill: #ffffff; } 66%, 92% { fill: #1baf7a; stroke: #12936a; } 100% { fill: #ffffff; } }
   .downloads { display: flex; flex-wrap: wrap; gap: 8px; }
   .downloads .chip { box-shadow: none; }
   footer.site { margin-top: 96px; border-top: 1px solid var(--line); padding: 28px 0 40px; color: var(--muted); font-size: 13px; }
@@ -345,8 +321,8 @@
     .algo-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
     .mapcard { min-height: 460px; }
     .steps, .anim-grid, .grid2 { grid-template-columns: 1fr; }
-    .hero-art { width: 100%; right: 0; opacity: .5; }
-    .hero::after { background: linear-gradient(180deg, rgba(10, 12, 15, .55), rgba(10, 12, 15, .85)); }
+    .hero-art { width: 100%; right: 0; opacity: .45; }
+    .hero::after { background: linear-gradient(180deg, rgba(247, 247, 244, .55), rgba(247, 247, 244, .9)); }
     .hero-stats { grid-template-columns: repeat(2, auto); }
     .hero-cap { display: none; }
   }
@@ -390,7 +366,6 @@
     </nav>
     <div class="grow"></div>
     <div class="seg" id="instSeg" role="group" aria-label="Pilih instance"></div>
-    <button class="iconbtn" id="themeBtn" aria-label="Ganti tema terang/gelap" title="Ganti tema"></button>
   </div>
 </header>
 
@@ -605,10 +580,6 @@ const dur = (s) => (s < 1 ? num(s * 1000, s < 0.01 ? 1 : 0) + " ms" : num(s, s <
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const cvar = (a) => `var(--c${a.slot})`;
 const gapFmt = (v) => (v < 0.005 ? "0%" : "+" + num(v, v < 1 ? 2 : 1) + "%");
-const isDark = () => {
-  const t = document.documentElement.dataset.theme;
-  return t ? t === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
-};
 const easeOut = (t) => 1 - Math.pow(1 - t, 3);
 function tween(el, to, fmt, ms = 700) {
   const from = +(el.dataset.v ?? 0);
@@ -654,19 +625,6 @@ const algoOf = (key, inst = cur) => inst.algos.find((a) => a.key === key);
 const ref = (inst = cur) => algoOf(DATA.reference, inst);
 const depotColor = (d) => DATA.depot_colors[d % DATA.depot_colors.length];
 const shortId = (id) => id.replace("SPPG-", "");
-
-// ================================================================ tema
-const SUN = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
-const MOON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';
-function themeIcon() { $("#themeBtn").innerHTML = isDark() ? SUN : MOON; }
-$("#themeBtn").onclick = () => {
-  const next = isDark() ? "light" : "dark";
-  document.documentElement.dataset.theme = next;
-  store.set("theme", next);
-  onTheme();
-};
-matchMedia("(prefers-color-scheme: dark)").addEventListener("change", onTheme);
-function onTheme() { themeIcon(); setTiles(); drawRoutes(false); renderLine(false); }
 
 // ================================================================ hero
 function project(nodes, W, H, pad) {
@@ -867,7 +825,7 @@ function initMap() {
 function setTiles() {
   if (!map) return;
   tiles.forEach((t) => map.removeLayer(t));
-  const v = isDark() ? "Dark" : "Light", url = (x) => `https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_${v}_Gray_${x}/MapServer/tile/{z}/{y}/{x}`;
+  const url = (x) => `https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_${x}/MapServer/tile/{z}/{y}/{x}`;
   tiles = [L.tileLayer(url("Base"), { maxNativeZoom: 16, maxZoom: 19, attribution: "Tiles &copy; Esri" }),
     L.tileLayer(url("Reference"), { maxNativeZoom: 16, maxZoom: 19, opacity: 0.85 })];
   tiles.forEach((t) => t.addTo(map).bringToBack());
@@ -893,7 +851,7 @@ function drawRoutes(animate) {
   const a = algoOf(algoKey), best = ref();
   if (ghostOn && a.key !== best.key) {
     for (const v of best.vehicles) {
-      L.polyline(vehPoints(cur, v), { color: isDark() ? "#ecebe6" : "#3d3c39", weight: 4, opacity: isDark() ? 0.6 : 0.5,
+      L.polyline(vehPoints(cur, v), { color: "#3d3c39", weight: 4, opacity: 0.5,
         dashArray: "1 8", lineCap: "round", interactive: false }).addTo(ghostLayer);
     }
   }
@@ -909,7 +867,7 @@ function drawRoutes(animate) {
   $("#mapLegend").replaceChildren(...legendBase, ...[
     ghostOn && a.key !== best.key && h("span", {}, h("i", { class: "key dots" }), `${best.label} (optimal)`),
     owner.size < cur.n && h("span", {}, h("i", { class: "key ring" }), "tidak terlayani")].filter(Boolean));
-  const fill = isDark() ? "#171716" : "#ffffff";
+  const fill = "#ffffff";
   for (let s = 0; s < cur.n; s++) {
     const n = cur.nodes[cur.m + s], o = owner.get(s);
     L.circleMarker([n.lat, n.lon], { radius: o ? 6 : 5.5, weight: 2.5, color: o ? depotColor(o.d) : "#9a9a96", fillColor: fill, fillOpacity: 1, dashArray: o ? null : "2 3" })
@@ -1190,20 +1148,20 @@ function buildAnimArt() {
     style: `animation-delay:${(path.has(`${d}-${i}`) ? d * 0.5 : 0.25 + n * 0.12).toFixed(2)}s` }, tree));
   const van = $("#vanArt");
   const road = "M30 150 C 90 150, 100 60, 170 70 S 250 150, 300 110 S 360 40, 380 50";
-  sv("path", { d: road, fill: "none", stroke: "#2a2d33", "stroke-width": 14, "stroke-linecap": "round" }, van);
+  sv("path", { d: road, fill: "none", stroke: "#dedcd5", "stroke-width": 14, "stroke-linecap": "round" }, van);
   sv("path", { d: road, id: "vroad", fill: "none", stroke: "#eb6834", "stroke-width": 3, "stroke-linecap": "round", "stroke-dasharray": "2 9", opacity: 0.8 }, van);
   [[30, 150, "#2a78d6"], [170, 70, null], [300, 110, null], [380, 50, null]].forEach(([x, y, c], i) => {
     if (c) sv("rect", { x: x - 9, y: y - 9, width: 18, height: 18, rx: 4, fill: c, stroke: "#fff", "stroke-width": 2 }, van);
     else {
-      const s = sv("circle", { cx: x, cy: y, r: 8, fill: "#0a0c0f", stroke: "#eb6834", "stroke-width": 3 }, van);
-      sv("animate", { attributeName: "fill", values: "#0a0c0f;#0a0c0f;#eb6834;#eb6834;#0a0c0f", keyTimes: `0;${(0.2 + i * 0.22).toFixed(2)};${(0.24 + i * 0.22).toFixed(2)};0.94;1`, dur: "6s", repeatCount: "indefinite" }, s);
+      const s = sv("circle", { cx: x, cy: y, r: 8, fill: "#ffffff", stroke: "#eb6834", "stroke-width": 3 }, van);
+      sv("animate", { attributeName: "fill", values: "#ffffff;#ffffff;#eb6834;#eb6834;#ffffff", keyTimes: `0;${(0.2 + i * 0.22).toFixed(2)};${(0.24 + i * 0.22).toFixed(2)};0.94;1`, dur: "6s", repeatCount: "indefinite" }, s);
     }
   });
   const g = sv("g", {}, van);
-  sv("rect", { x: -13, y: -8, width: 18, height: 12, rx: 2.5, fill: "#f4f4f1" }, g);
-  sv("path", { d: "M5 -5h4l4 4v5H5z", fill: "#f4f4f1" }, g);
-  sv("circle", { cx: -7, cy: 5, r: 3, fill: "#0a0c0f", stroke: "#f4f4f1", "stroke-width": 1.5 }, g);
-  sv("circle", { cx: 8, cy: 5, r: 3, fill: "#0a0c0f", stroke: "#f4f4f1", "stroke-width": 1.5 }, g);
+  sv("rect", { x: -13, y: -8, width: 18, height: 12, rx: 2.5, fill: "#2a78d6" }, g);
+  sv("path", { d: "M5 -5h4l4 4v5H5z", fill: "#2a78d6" }, g);
+  sv("circle", { cx: -7, cy: 5, r: 3, fill: "#2b2b28", stroke: "#ffffff", "stroke-width": 1.5 }, g);
+  sv("circle", { cx: 8, cy: 5, r: 3, fill: "#2b2b28", stroke: "#ffffff", "stroke-width": 1.5 }, g);
   const mo = sv("animateMotion", { dur: "6s", repeatCount: "indefinite", rotate: "auto" }, g);
   sv("mpath", { href: "#vroad" }, mo);
   if (REDUCE) { tree.pauseAnimations?.(); van.pauseAnimations?.(); }
@@ -1225,7 +1183,6 @@ function spy() {
 }
 
 // ================================================================ mulai
-themeIcon();
 buildHero();
 buildParams();
 buildInstSeg();
