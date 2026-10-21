@@ -1,8 +1,7 @@
 """Kumpulkan hasil (animasi, peta, grafik) ke folder site/ untuk hosting statis (Vercel dll).
 
-Dua case ditampilkan per instance: Alokasi SPPG (Bagian B: HC, SA, GA) dan Rute terbaik
-di dalam satu SPPG (Bagian A: BFS, UCS, A*, GBFS, DFS-B&B). Jalankan setelah
-run_assignment.py, run_search.py dan make_animation.py:
+Per instance: tabel perbandingan algoritma pencarian rute (BFS, IDS, DFS-B&B, UCS, A*, GBFS),
+animasi, dan peta rute terbaik. Jalankan setelah run_search.py dan make_animation.py:
   python scripts/build_site.py
 Deploy:
   vercel deploy site --prod
@@ -16,18 +15,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "site"
 
-ALLOC_ORDER = ["HC", "SA", "GA"]
-ROUTE_ORDER = ["UCS", "A*", "DFS-B&B", "BFS", "GBFS"]
-ROUTE_LABEL = {"GBFS": "Greedy", "DFS-B&B": "DFS"}
-ROUTE_OPTIMAL = {"UCS", "A*", "DFS-B&B"}   # menjamin solusi optimal
+ROUTE_ORDER = ["UCS", "A*", "A* (h1)", "DFS-B&B", "IDS", "BFS", "GBFS"]
+ROUTE_LABEL = {"GBFS": "Greedy best-first", "A*": "A* (h2)", "DFS-B&B": "DFS + B&B"}
+ROUTE_OPTIMAL = {"UCS", "A*", "A* (h1)", "DFS-B&B"}   # menjamin solusi optimal
 
-ALLOC_FILES = ["ls_best_routes.txt", "peta_rute_terbaik.html"]
-ALLOC_FIGS = [
-    ("fig_ls_tradeoff.png", "Trade-off biaya vs waktu: HC/SA/GA + rute optimal (sweep bobot w = 0 … 1)"),
-    ("fig_ls_konvergensi.png", "Konvergensi HC, SA, GA (median 30 seed)"),
-    ("fig_ls_boxplot.png", "Sebaran fitness akhir 30 seed"),
-    ("fig_rute_terbaik.png", "Rute terbaik keseluruhan"),
-]
+ROUTE_FILES = ["rute_terbaik.txt", "peta_rute_terbaik.html", "animasi.html"]
+ROUTE_FIGS = [("fig_rute_terbaik.png", "Rute terbaik (A*): tiap warna = satu SPPG")]
 SEARCH_FIGS = [
     ("fig_search_scaling.png", "Skalabilitas pencarian (node diekspansi vs jumlah sekolah k)"),
     ("fig_search_gap.png", "Selisih biaya terhadap optimum per algoritma (sub-masalah k ≤ 9)"),
@@ -68,27 +61,6 @@ def route_summary(rows, instance):
     return out
 
 
-def alloc_table(src, name):
-    summary = {r["algorithm"]: r for r in read_csv(src / "ls_summary.csv")}
-    rows = [summary[a] for a in ALLOC_ORDER if a in summary]
-    if not rows:
-        return ""
-    best = min(rows, key=lambda r: float(r["fitness_mean"]))
-    trs = []
-    for r in rows:
-        cls = ' class="best"' if r is best else ""
-        trs.append(f"<tr{cls}><td>{r['algorithm']}</td>"
-                   f"<td>{float(r['fitness_mean']):.4f} ± {float(r['fitness_std']):.4f}</td>"
-                   f"<td>Rp{float(r['cost_rp_mean']):,.0f}</td>"
-                   f"<td>{float(r['mean_arrival_min_mean']):.1f} mnt</td>"
-                   f"<td>{float(r['runtime_s_mean']):.1f} s</td></tr>")
-    return f"""<div class=tablewrap><table>
-    <thead><tr><th>Algoritma</th><th>Fitness (mean ± std)</th><th>Biaya bensin</th>
-      <th>Rata-rata tiba</th><th>Waktu/run</th></tr></thead>
-    <tbody>{''.join(trs)}</tbody>
-  </table></div>"""
-
-
 def route_table(rows):
     if not rows:
         return ""
@@ -123,51 +95,26 @@ def instance_section(name, cfg, search_rows):
     src = ROOT / "results" / name
     dst = SITE / name
     dst.mkdir(parents=True, exist_ok=True)
-    for fn in ALLOC_FILES:
+    for fn in ROUTE_FILES:
         if (src / fn).exists():
             shutil.copy2(src / fn, dst / fn)
-    if (src / "animasi.html").exists():
-        shutil.copy2(src / "animasi.html", dst / "animasi.html")
 
     inst = cfg["instances"][name]
-    n_sppg, n_sch = len(inst["sppg_ids"]), inst["n_schools"]
-    route_rows = route_summary(search_rows, name)
-
-    alloc_figs = figs_html(name, src, dst, ALLOC_FIGS)
-    route_depot = ""
-    best_json = src / "ls_best.json"
-    if best_json.exists():
-        best = json.loads(best_json.read_text(encoding="utf-8"))
-        top = min((k for k in best if k not in ("best_known_fitness", "Greedy")),
-                  key=lambda k: best[k]["fitness"])
-        route_depot = f" — sub-masalah nyata dianimasikan di {name}/animasi.html#stage=2 (SPPG terbesar, " \
-                      f"penugasan terbaik {top})"
-
     return f"""
 <section>
-  <h2>{name} <span class=muted>· {n_sppg} SPPG, {n_sch} sekolah</span></h2>
-
-  <h3>Case 1 — Alokasi SPPG → sekolah <span class=muted>(Hill Climbing, Simulated Annealing, Genetic Algorithm)</span></h3>
+  <h2>{name} <span class=muted>· {len(inst['sppg_ids'])} SPPG, {inst['n_schools']} sekolah</span></h2>
   <div class=links>
-    <a class=primary href="{name}/animasi.html#stage=1">▶ Animasi alokasi</a>
+    <a class=primary href="{name}/animasi.html#stage=1">▶ Animasi pencarian rute</a>
+    <a href="{name}/animasi.html#stage=2">Animasi pengiriman</a>
     <a href="{name}/peta_rute_terbaik.html">Peta rute terbaik</a>
-    <a href="{name}/ls_best_routes.txt">Rute terbaik (teks)</a>
+    <a href="{name}/rute_terbaik.txt">Rute terbaik (teks)</a>
   </div>
-  {alloc_table(src, name)}
-  <p class=muted>Bobot w = {cfg['experiment']['main_weight']}, {cfg['assignment']['n_seeds']} seed,
-    {cfg['assignment']['budget_evals']:,} evaluasi per run. Fitness lebih kecil = lebih baik.
-    Rute tiap SPPG selalu dihitung optimal (Router), jadi fitness di atas murni mengukur kualitas alokasi.</p>
-  <div class=gallery>{alloc_figs}</div>
-
-  <h3>Case 2 — Rute terbaik di dalam satu SPPG <span class=muted>(UCS, A*, DFS, BFS, Greedy)</span></h3>
-  <div class=links>
-    <a class=primary href="{name}/animasi.html#stage=2">▶ Animasi pencarian rute</a>
-  </div>
-  {route_table(route_rows)}
-  <p class=muted>Diagregasi dari semua SPPG di instance ini (sub-masalah nyata: sekolah milik tiap SPPG
-    pada penugasan terbaik Case 1){route_depot}. UCS, A* dan DFS (branch and bound) menjamin rute
-    optimal; BFS menjamin jumlah Granmax paling sedikit (bukan termurah); Greedy (best-first) tercepat
-    tapi tidak menjamin optimal.</p>
+  {route_table(route_summary(search_rows, name))}
+  <p class=muted>Diagregasi dari semua SPPG di instance ini (sekolah dibagi ke SPPG terdekat).
+    UCS, A*, dan DFS + branch and bound menjamin rute optimal; BFS dan IDS menjamin jumlah Granmax
+    paling sedikit (bukan termurah); Greedy best-first tercepat tapi tidak menjamin optimal.
+    Gap dihitung terhadap biaya UCS.</p>
+  <div class=gallery>{figs_html(name, src, dst, ROUTE_FIGS)}</div>
 </section>"""
 
 
@@ -190,14 +137,14 @@ def main():
     search_figs = "".join(top_figs)
 
     sections = "".join(instance_section(n, cfg, search_rows) for n in cfg["instances"]
-                       if (ROOT / "results" / n / "ls_summary.csv").exists())
+                       if (ROOT / "results" / n / "rute_terbaik.json").exists())
     page = f"""<!doctype html>
 <html lang="id">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rute MBG Surabaya</title>
-<meta name="description" content="Optimasi distribusi Makan Bergizi Gratis dari SPPG ke sekolah di Surabaya: alokasi SPPG (HC, SA, GA) dan rute terbaik (UCS, A*, DFS, BFS, Greedy).">
+<meta name="description" content="Optimasi distribusi Makan Bergizi Gratis dari SPPG ke sekolah di Surabaya: rute terbaik dengan algoritma pencarian (UCS, A*, DFS, BFS, IDS, Greedy).">
 <style>
   :root {{ --bg:#f6f6f4; --surface:#fff; --ink:#1d1d1b; --muted:#6b6b66; --line:#e2e2de; --accent:#2a78d6; --best:#eaf2fc; }}
   @media (prefers-color-scheme: dark) {{
@@ -237,17 +184,15 @@ def main():
   <h1>Optimasi Distribusi MBG di Surabaya</h1>
   <p class=lead>Pengiriman Makan Bergizi Gratis dari SPPG (dapur) ke sekolah memakai Granmax,
     dimodelkan sebagai <b>Multi-Depot Vehicle Routing Problem bi-objektif</b> (biaya bensin
-    &amp; waktu tiba), dipecah menjadi dua case independen:</p>
+    &amp; waktu tiba). Tiap sekolah dilayani SPPG terdekat, lalu <b>urutan kunjungan Granmax</b> di
+    dalam tiap SPPG dicari dengan algoritma pencarian (Kuliah 2 &amp; 3): BFS, IDS, DFS + branch and bound,
+    Uniform-Cost Search, A* (dua heuristik), dan Greedy best-first.</p>
   <ul>
-    <li><b>Case 1 — alokasi SPPG:</b> sekolah mana dilayani SPPG mana. Dibandingkan: Hill Climbing,
-      Simulated Annealing, Genetic Algorithm (pencarian lokal, Kuliah 6).</li>
-    <li><b>Case 2 — rute terbaik:</b> urutan kunjungan Granmax di dalam satu SPPG. Dibandingkan:
-      Uniform-Cost Search, A*, DFS (branch and bound), BFS, Greedy best-first (pencarian, Kuliah 2 &amp; 3).</li>
     <li>Data: sekolah dari OpenStreetMap, lokasi SPPG dari berita (koordinat perkiraan), jarak &amp; waktu tempuh jalan asli dari OSRM.</li>
   </ul>
   <section>
-    <h2>Case 2 — skalabilitas pencarian rute <span class=muted>(semua ukuran sub-masalah)</span></h2>
-    <p class=muted>UCS, A* dan DFS (branch and bound) selalu optimal; BFS dan Greedy best-first tidak.
+    <h2>Skalabilitas pencarian rute <span class=muted>(semua ukuran sub-masalah)</span></h2>
+    <p class=muted>UCS, A* dan DFS (branch and bound) optimal bila pencarian selesai sebelum batas node; BFS, IDS dan Greedy best-first tidak.
       A* mengekspansi node jauh lebih sedikit seiring k membesar karena heuristik Hungaria (h2).</p>
     <div class=gallery>{search_figs}</div>
   </section>

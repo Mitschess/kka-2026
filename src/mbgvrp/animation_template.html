@@ -89,9 +89,8 @@
 <header>
   <div class="title">Animasi Rute MBG <span id="sub"></span></div>
   <div class="tabs" role="tablist">
-    <button data-stage="1" class="on" role="tab">1 · Alokasi SPPG</button>
-    <button data-stage="2" role="tab">2 · Rute terbaik</button>
-    <button data-stage="3" role="tab">3 · Pengiriman</button>
+    <button data-stage="1" class="on" role="tab">1 · Rute terbaik</button>
+    <button data-stage="2" role="tab">2 · Pengiriman</button>
   </div>
   <label>Algoritma <select id="algo" aria-label="Algoritma"></select></label>
   <button id="toggleCode" aria-pressed="false">Sembunyikan kode</button>
@@ -157,11 +156,9 @@ const store = {
   set(k, v) { try { localStorage.setItem("mbg-anim-" + k, v); } catch (e) { /* abaikan */ } },
 };
 
-const S = { stage: 1, algoAlloc: "SA", algoRoute: "A*", frame: 0, t: 0, playing: false, last: 0, acc: 0 };
-const isSearchStage = () => S.stage === 1 || S.stage === 2;
-const groupFor = (stage) => (stage === 2 ? DATA.route : DATA.alloc);
-const algoKeyFor = (stage) => (stage === 2 ? "algoRoute" : "algoAlloc");
-const currentSet = () => groupFor(S.stage)[S[algoKeyFor(S.stage)]];
+const S = { stage: 1, algoRoute: "A*", frame: 0, t: 0, playing: false, last: 0, acc: 0 };
+const isSearchStage = () => S.stage === 1;
+const currentSet = () => DATA.route[S.algoRoute];
 
 // ------------------------------------------------------------------ peta
 const map = L.map("map", { preferCanvas: true, zoomSnap: 0.25 });
@@ -194,15 +191,12 @@ $("legend").innerHTML = NODES.slice(0, M).map((n, d) => `<div><i style="backgrou
 
 // ------------------------------------------------------------------ UI umum
 $("sub").textContent = `· ${DATA.instance} (${M} SPPG, ${N} sekolah, maks ${DATA.Q} sekolah/Granmax, w = ${DATA.w})`;
-S.algoAlloc = store.get("algoAlloc", "SA");
-if (!DATA.alloc[S.algoAlloc]) S.algoAlloc = Object.keys(DATA.alloc)[0];
 S.algoRoute = store.get("algoRoute", "A*");
 if (!DATA.route[S.algoRoute]) S.algoRoute = Object.keys(DATA.route)[0];
 function populateAlgo() {
-  const grp = groupFor(S.stage), key = algoKeyFor(S.stage);
   $("algo").innerHTML = "";
-  for (const a of Object.keys(grp)) $("algo").add(new Option(a, a));
-  $("algo").value = S[key];
+  for (const a of Object.keys(DATA.route)) $("algo").add(new Option(a, a));
+  $("algo").value = S.algoRoute;
 }
 $("speed").value = store.get("speed", "4");
 
@@ -226,7 +220,7 @@ function setCodeHidden(hidden) {
 }
 $("toggleCode").onclick = () => setCodeHidden(!document.body.classList.contains("nocode"));
 
-// ------------------------------------------------------------------ tahap 1: pencarian
+// ------------------------------------------------------------------ tahap 1: pencarian rute
 // geometri jalan asli per ruas a -> b (OSRM); garis lurus hanya kalau datanya tidak ada
 const LEGS = DATA.legs || {};
 const leg = (a, b) => LEGS[a + "-" + b] || [ll(a), ll(b)];
@@ -240,7 +234,7 @@ function routePath(r) {
 }
 function drawSearch() {
   const A = currentSet(), F = A.frames, f = F[S.frame];
-  const label = S[algoKeyFor(S.stage)];
+  const label = S.algoRoute;
   routeLayer.clearLayers();
   const owner = new Array(N).fill(-1);
   for (const r of f.r) {
@@ -298,7 +292,7 @@ function clockStr(t) {
   return String(Math.floor(tot / 60) % 24).padStart(2, "0") + ":" + String(tot % 60).padStart(2, "0");
 }
 function setupDelivery() {
-  plan = DATA.alloc[S.algoAlloc].delivery;
+  plan = DATA.route[S.algoRoute].delivery;
   roadLayer.clearLayers(); vanLayer.clearLayers(); events = [];
   for (const v of plan.veh) {
     for (const seg of v.segs) {
@@ -389,7 +383,7 @@ function drawDelivery() {
     "Sekolah terakhir tiba": `${plan.makespan} mnt` });
   $("log").innerHTML = past.slice(-40).reverse()
     .map((e) => `<div><span class="t">${clockStr(e.t)}</span>${evText(e)}</div>`).join("");
-  $("hud").innerHTML = `<div class="sm">${S.algoAlloc} · pengiriman</div><div class="big">${clockStr(t)}</div>
+  $("hud").innerHTML = `<div class="sm">${S.algoRoute} · pengiriman</div><div class="big">${clockStr(t)}</div>
     <div class="sm">t = ${t.toFixed(1)} mnt · ${done}/${N} sekolah terlayani · ${km.toFixed(1)} km</div>`;
   $("scrub").max = Math.ceil(plan.T * 10); $("scrub").value = Math.round(t * 10);
   $("pos").textContent = `t = ${t.toFixed(1)} / ${plan.T.toFixed(1)} mnt`;
@@ -448,24 +442,18 @@ function enter() {
   populateAlgo();
   document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("on", +b.dataset.stage === S.stage));
   routeLayer.clearLayers(); roadLayer.clearLayers(); vanLayer.clearLayers();
-  $("logSec").style.display = S.stage === 3 ? "" : "none";
+  $("logSec").style.display = isSearchStage() ? "none" : "";
   if (isSearchStage()) {
     const A = currentSet();
     S.frame = 0;
-    const label = S[algoKeyFor(S.stage)];
-    $("codeTitle").textContent = `Pseudocode · ${label}`;
+    $("codeTitle").textContent = `Pseudocode · ${S.algoRoute}`;
     setCode(A.code);
-    if (S.stage === 2) {
-      const rd = DATA.route_depot;
-      $("note").textContent = `Sub-masalah nyata: ${rd.id} (${rd.name}), ${rd.k} sekolah dari penugasan terbaik `
-        + "Bagian B. Rute mengikuti jalan asli (OSRM).";
-    } else {
-      $("note").textContent = "Rute tiap SPPG dihitung optimal (Router) di setiap langkah, jadi peta selalu "
-        + `solusi lengkap. Run: seed ${DATA.seed}, ${DATA.budget.toLocaleString("id-ID")} evaluasi.`;
-    }
+    const rd = DATA.route_depot;
+    $("note").textContent = `Semua ${rd.n_depots} SPPG dicari bersamaan (tiap SPPG di kemajuannya sendiri, selesai bersamaan). `
+      + `Pseudocode dan penjelasan mengikuti ${rd.id}, SPPG terbesar (${rd.k} sekolah). Rute mengikuti jalan asli (OSRM).`;
   } else {
     S.t = 0;
-    $("codeTitle").textContent = `Simulasi pengiriman · rute terbaik ${S.algoAlloc}`;
+    $("codeTitle").textContent = `Simulasi pengiriman · rute ${S.algoRoute}`;
     setCode(DATA.delivery_code);
     $("note").textContent = "Garis = jalan asli (OSRM). Titik sekolah terisi warna saat makanan sudah tiba.";
     setupDelivery();
@@ -474,21 +462,19 @@ function enter() {
 }
 document.querySelectorAll(".tabs button").forEach((b) => b.onclick = () => { S.stage = +b.dataset.stage; enter(); });
 $("algo").onchange = () => {
-  const key = algoKeyFor(S.stage);
-  S[key] = $("algo").value;
-  store.set(key, S[key]);
+  S.algoRoute = $("algo").value;
+  store.set("algoRoute", S.algoRoute);
   enter();
 };
 
-// tautan langsung, mis. animasi.html#stage=2&algoRoute=A*&frame=30&code=0
+// tautan langsung, mis. animasi.html#stage=1&algoRoute=A*&frame=30&code=0
 const H = new URLSearchParams(location.hash.slice(1));
-if (DATA.alloc[H.get("algoAlloc")]) S.algoAlloc = H.get("algoAlloc");
 if (DATA.route[H.get("algoRoute")]) S.algoRoute = H.get("algoRoute");
-if (["1", "2", "3"].includes(H.get("stage"))) S.stage = +H.get("stage");
+if (["1", "2"].includes(H.get("stage"))) S.stage = +H.get("stage");
 setCodeHidden(H.has("code") ? H.get("code") === "0" : store.get("nocode", "0") === "1");
 enter();
 if (isSearchStage() && H.has("frame")) { S.frame = Math.min(+H.get("frame"), currentSet().frames.length - 1); render(); }
-if (S.stage === 3 && H.has("t")) { S.t = Math.min(+H.get("t"), plan.T); render(); }
+if (S.stage === 2 && H.has("t")) { S.t = Math.min(+H.get("t"), plan.T); render(); }
 </script>
 </body>
 </html>

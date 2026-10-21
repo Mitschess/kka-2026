@@ -118,11 +118,11 @@ def fig_wilayah(config, out_path):
     plt.close(fig)
 
 
-def fig_rute(config, name, label, out_path, title=None, source="best_solutions.json"):
-    """Rute solusi `label` dari results/<name>/<source> di atas basemap."""
+def fig_rute(config, name, out_path, title=None):
+    """Rute terbaik results/<name>/rute_terbaik.json di atas basemap."""
     inst = load_instance(ROOT, name, config)
     res = ROOT / "results" / name
-    sol = json.loads((res / source).read_text(encoding="utf-8"))[label]
+    sol = json.loads((res / "rute_terbaik.json").read_text(encoding="utf-8"))
     cache = res / ".osrm_legs_cache.json"
     pairs = []
     for d, seq in sol["routes"]:
@@ -156,7 +156,7 @@ def fig_rute(config, name, label, out_path, title=None, source="best_solutions.j
     ys = [merc(n["lat"], n["lon"])[1] for n in inst.nodes]
     _frame(ax, xs, ys, pad=0.06)
     if title is not False:  # title=False -> tanpa judul (dipakai untuk gambar sampul)
-        ax.set_title(title or f"{label}: Rp{sol['cost_rp']:,.0f} · {sol['km']:.1f} km · rata-rata tiba "
+        ax.set_title(title or f"Rute terbaik (A*): Rp{sol['cost_rp']:,.0f} · {sol['km']:.1f} km · rata-rata tiba "
                               f"{sol['mean_arrival_min']:.1f} mnt · {sol['n_vehicles']} Granmax",
                      loc="left", fontsize=10.5, color=INK)
     ax.text(0.99, 0.01, "Tiles © Esri · rute OSRM/OpenStreetMap", transform=ax.transAxes, ha="right",

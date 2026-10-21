@@ -1,4 +1,4 @@
-"""Bagian A — routing di dalam satu SPPG dengan algoritma pencarian (Kuliah 2 & 3).
+"""Routing di dalam satu SPPG dengan algoritma pencarian (Kuliah 2 & 3).
 
 Sub-masalah: SPPG d melayani himpunan sekolah S dengan <= V Granmax, tiap Granmax
 <= Q sekolah, semuanya berangkat bersamaan di t = 0.

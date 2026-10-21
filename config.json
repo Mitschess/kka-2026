@@ -10,54 +10,48 @@
   },
   "instances": {
     "surabaya_utara": {
-      "sppg_ids": ["SPPG-KRB", "SPPG-SMK", "SPPG-TDK"],
+      "sppg_ids": [
+        "SPPG-KRB",
+        "SPPG-SMK",
+        "SPPG-TDK"
+      ],
       "vehicles_per_sppg": 3,
       "n_schools": 18,
       "radius_km": 3.0,
       "seed": 7
     },
     "surabaya_6sppg": {
-      "sppg_ids": ["SPPG-KRB", "SPPG-SMK", "SPPG-TDK", "SPPG-KBR", "SPPG-JWS", "SPPG-MLY"],
+      "sppg_ids": [
+        "SPPG-KRB",
+        "SPPG-SMK",
+        "SPPG-TDK",
+        "SPPG-KBR",
+        "SPPG-JWS",
+        "SPPG-MLY"
+      ],
       "vehicles_per_sppg": 3,
       "n_schools": 42,
       "radius_km": 3.0,
       "seed": 7
     }
   },
-  "experiment": {
-    "weights": [0.0, 0.25, 0.5, 0.75, 1.0],
-    "main_weight": 0.5,
-    "budget_evals": 20000,
-    "n_seeds": 30,
-    "penalty": 10.0
-  },
   "search": {
-    "_comment": "Bagian A: routing di dalam satu SPPG (run_search.py)",
+    "weight": 0.5,
     "max_nodes": 5000000,
-    "scaling_k": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    "scaling_k": [
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
     "scaling_samples": 3,
     "scaling_pool": 15,
     "scaling_instance": "surabaya_6sppg"
-  },
-  "assignment": {
-    "_comment": "Bagian B: penugasan sekolah ke SPPG (run_assignment.py)",
-    "budget_evals": 200000,
-    "n_seeds": 30,
-    "sensitivity_algo": "RR-HC",
-    "algorithms": {
-      "HC": {},
-      "HC-Sideways": {"max_sideways": 100},
-      "Stochastic HC": {},
-      "Random-Walk HC": {"p_walk": 0.05},
-      "RR-HC": {},
-      "EHC": {"max_depth": 2},
-      "SA": {"accept_prob_init": 0.8, "final_temp_ratio": 0.0001},
-      "GA": {"pop_size": 100, "tournament_k": 3, "p_crossover": 0.9, "n_elite": 2}
-    }
-  },
-  "algorithms": {
-    "hc": {"n_neighbors": 50},
-    "sa": {"accept_prob_init": 0.8, "final_temp_ratio": 0.0001},
-    "ga": {"pop_size": 100, "tournament_k": 3, "p_crossover": 0.9, "p_mutation": 0.3, "n_elite": 2}
   }
 }

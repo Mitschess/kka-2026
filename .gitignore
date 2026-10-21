@@ -3,11 +3,8 @@ __pycache__/
 .venv/
 *_log.txt
 results/**/.osrm_cache.json
-results/**/.checkpoint_*.pkl
 results/**/.animasi_data.json
 site/.vercel/
 report/node_modules/
 report/.tile_cache/
-results/**/.ls_*.pkl
-results/**/.search_*.pkl
 ~$*

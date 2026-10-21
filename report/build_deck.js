@@ -1,4 +1,4 @@
-// Presentation deck (PPTX, ±15 menit) untuk proyek ETS MBG-VRP.
+// Presentation deck (PPTX, ±15 menit) untuk proyek MBG-VRP.
 //   cd report && npm install && node build_deck.js
 // Membaca angka langsung dari ../results (CSV/JSON) dan gambar dari ../results + ./figs
 // (jalankan python report/build_report.py dulu agar figs/fig_rute_*.png ada).
@@ -33,9 +33,6 @@ const MUTED = "5E6B65";
 // palet kategorikal 8 slot (sama dengan grafik matplotlib di src/mbgvrp/viz.py)
 const PAL8 = ["2A78D6", "EB6834", "1BAF7A", "EDA100", "E87BA4", "008300", "6250D6", "E34948"];
 const SEARCH = ["BFS", "IDS", "DFS-B&B", "UCS", "A* (h1)", "A*", "GBFS"];
-const LOCAL = ["HC", "HC-Sideways", "Stochastic HC", "Random-Walk HC", "RR-HC", "EHC", "SA", "GA"];
-const INTEG = ["HC", "SA", "GA"]; // pembanding terintegrasi (run_experiments.py)
-const LS_COLOR = Object.fromEntries(LOCAL.map((a, i) => [a, PAL8[i]]));
 const SEARCH_COLOR = Object.fromEntries(SEARCH.map((a, i) => [a, PAL8[i]]));
 
 // ------------------------------------------------------------------ data
@@ -46,56 +43,32 @@ function readCsv(p) {
 }
 const names = Object.keys(CONFIG.instances);
 const SMALL = names[0], BIG = names[names.length - 1];
-const ls = {}, lsBest = {}, lsTests = {}, integ = {};
-for (const n of names) {
-  ls[n] = Object.fromEntries(readCsv(path.join(RES, n, "ls_summary.csv")).map((r) => [r.algorithm, r]));
-  lsBest[n] = JSON.parse(fs.readFileSync(path.join(RES, n, "ls_best.json"), "utf8"));
-  lsTests[n] = Object.fromEntries(readCsv(path.join(RES, n, "ls_stat_tests.csv")).map((r) => [r.pair, r]));
-  integ[n] = Object.fromEntries(readCsv(path.join(RES, n, "summary_main_w.csv")).map((r) => [r.algorithm, r]));
-}
+const best = JSON.parse(fs.readFileSync(path.join(RES, BIG, "rute_terbaik.json"), "utf8"));
 const real = readCsv(path.join(RES, "search_real.csv"));
 const scal = readCsv(path.join(RES, "search_summary.csv"));
-const sweepFile = path.join(RES, BIG, "ls_sweep.csv");
-const sweep = fs.existsSync(sweepFile) ? readCsv(sweepFile) : [];
-const sens = readCsv(path.join(RES, BIG, "sensitivity.csv"));
 
 const fmt = (x, d = 0) => Number(x).toLocaleString("id-ID", { minimumFractionDigits: d, maximumFractionDigits: d });
 const rp = (x) => "Rp" + fmt(x);
-const SUP = "⁰¹²³⁴⁵⁶⁷⁸⁹";
-const pstr = (p) => {
-  if (p >= 0.001) return fmt(p, 3);
-  const [m, e] = Number(p).toExponential(0).split("e-");
-  return `${m}×10⁻${[...e].map((c) => SUP[+c]).join("")}`;
-};
-const sup = (n) => [...String(n)].map((c) => SUP[+c]).join("");
-const lsTest = (n, a, b) => lsTests[n][`${a} vs ${b}`] || lsTests[n][`${b} vs ${a}`];
 const agg = (a) => {
   const rs = real.filter((r) => r.algorithm === a);
-  const gaps = rs.map((r) => +r.gap_pct);
+  const gaps = rs.map((r) => +r.gap_pct).filter(Number.isFinite);
   return {
     n: rs.length, opt: rs.filter((r) => r.optimal === "True").length,
-    gap: gaps.reduce((x, y) => x + y, 0) / rs.length, exp: rs.reduce((x, r) => x + +r.expanded, 0),
-    mem: Math.max(...rs.map((r) => +r.max_stored)),
+    gap: gaps.reduce((x, y) => x + y, 0) / gaps.length, exp: rs.reduce((x, r) => x + +r.expanded, 0),
+    mem: Math.max(...rs.map((r) => +r.max_stored)), rt: rs.reduce((x, r) => x + +r.runtime_s, 0),
   };
 };
 const RA = Object.fromEntries(SEARCH.map((a) => [a, agg(a)]));
 const KS = [...new Set(scal.map((r) => +r.k))].sort((a, b) => a - b);
 const scv = (k, a, key) => +scal.find((r) => +r.k === k && r.algorithm === a)[key];
 const solvedUpTo = (a) => Math.max(0, ...KS.filter((k) => scv(k, a, "solved_rate") === 1));
-const rankLS = (n) => [...LOCAL].sort((a, b) => +ls[n][a].fitness_mean - +ls[n][b].fitness_mean || +ls[n][b].success_rate - +ls[n][a].success_rate);
-const bestSens = {};
-for (const r of sens) {
-  const k = `${r.scenario}|${+r.value}`;
-  if (!bestSens[k] || +r.fitness < +bestSens[k].fitness) bestSens[k] = r;
-}
-const sv = (sc, v, key) => +bestSens[`${sc}|${v}`][key];
 const readMatrix = (f) => fs.readFileSync(path.join(ROOT, "data", "instances", BIG, f), "utf8").trim().split(/\r?\n/).map((l) => l.split(",").map(Number));
+// pengiriman langsung (satu Granmax per sekolah, ke SPPG terdekat): biaya & waktu acuan
 const Dm = readMatrix("dist_km.csv"), Tm = readMatrix("time_min.csv");
-let sumD = 0, sumT = 0;
-Dm.forEach((row, i) => row.forEach((d, j) => { if (i !== j) { sumD += d; sumT += Tm[i][j]; } }));
-const SPEED = (sumD / sumT) * 60; // km/jam rata-rata kondisi lancar
-const TF = [...new Set(sens.filter((r) => r.scenario === "macet").map((r) => +r.value))].sort((a, b) => a - b);
-const F120 = TF.find((v) => sv("macet", v, "makespan_min") > 120);
+const nSppg = CONFIG.instances[BIG].sppg_ids.length, nSchool = Dm.length - nSppg;
+const starRows = [...Array(nSchool).keys()].map((s) => [...Array(nSppg).keys()].map((d) => [Dm[d][nSppg + s] + Dm[nSppg + s][d], Tm[d][nSppg + s]]));
+const refCost = starRows.reduce((x, r) => x + Math.min(...r.map((v) => v[0])), 0) * (CONFIG.problem.fuel_price_per_liter / CONFIG.problem.km_per_liter);
+const refTime = starRows.reduce((x, r) => x + Math.min(...r.map((v) => v[1])), 0) / nSchool;
 
 function pngSize(p) {
   const b = fs.readFileSync(p);
@@ -112,7 +85,7 @@ async function main() {
   const pres = new pptxgen();
   pres.layout = "LAYOUT_WIDE"; // 13.333 x 7.5 in
   pres.title = "Optimasi Rute Distribusi MBG di Surabaya";
-  pres.subject = "Final Project Konsep Kecerdasan Artifisial";
+  pres.subject = "Midterm Project Konsep Kecerdasan Artifisial";
   pres.author = "Tim ETS KKA";
   pres.theme = { headFontFace: THEME.headFontFace, bodyFontFace: THEME.bodyFontFace };
   const C = pres.SchemeColor;
@@ -173,18 +146,9 @@ async function main() {
     txt(s, label, { x: x + 0.2, y: y + 0.82, w: w - 0.4, h: h - 0.95, fontSize: 13, color: MUTED });
   };
 
-  const LB = ls[BIG], LS_ = ls[SMALL];
-  const rB = rankLS(BIG);
-  const top = rB[0];
-  const top3ns = [[0, 1], [0, 2], [1, 2]].every(([i, j]) => lsTest(BIG, rB[i], rB[j]).significant_5pct !== "True");
-  const bkB = lsBest[BIG].best_known_fitness;
-  const sol = lsBest[BIG][top], g = lsBest[BIG].Greedy;
-  const savePct = ((g.cost_rp - sol.cost_rp) / g.cost_rp) * 100;
-  const integBest = [...INTEG].sort((a, b) => +integ[BIG][a].fitness_mean - +integ[BIG][b].fitness_mean)[0];
-  const ib = integ[BIG][integBest];
-  const nBetter = LOCAL.filter((a) => +LB[a].fitness_mean < +ib.fitness_mean).length;
+
   const ratioUA = RA.UCS.exp / RA["A*"].exp;
-  const spaceB = CONFIG.instances[BIG].n_schools * Math.log10(CONFIG.instances[BIG].sppg_ids.length);
+  const savePct = (1 - best.cost_rp / refCost) * 100;
   const routePng = path.join(__dirname, "figs", `fig_rute_${BIG}_terbaik.png`);
   const coverPng = path.join(__dirname, "figs", `fig_cover_${BIG}.png`);
 
@@ -193,14 +157,14 @@ async function main() {
   {
     const s = pres.addSlide({ masterName: "DARK", sectionTitle: "Pembuka" });
     s.addImage({ path: coverPng, x: 7.9, y: 0, w: W - 7.9, h: 7.5, sizing: { type: "cover", w: W - 7.9, h: 7.5 } });
-    txt(s, "FINAL PROJECT · KONSEP KECERDASAN ARTIFISIAL", { x: M, y: 1.2, w: 7, h: 0.4, fontSize: 13, bold: true,
+    txt(s, "MIDTERM PROJECT · KONSEP KECERDASAN ARTIFISIAL", { x: M, y: 1.2, w: 7, h: 0.4, fontSize: 13, bold: true,
       color: "9FD3B9", charSpacing: 2 });
     s.addText("Optimasi Rute Distribusi Makan Bergizi Gratis di Surabaya", { placeholder: "title" });
-    txt(s, "Algoritma pencarian (BFS, IDS, DFS-B&B, UCS, A*, Greedy Best-First) + pencarian lokal (6 varian Hill Climbing, SA, GA)",
+    txt(s, "Perbandingan algoritma pencarian: BFS, IDS, DFS-B&B, UCS, A*, Greedy Best-First",
       { x: M, y: 4.35, w: 7, h: 0.9, fontSize: 17, color: "D7E7DF" });
     txt(s, TEAM, { x: M, y: 5.9, w: 7, h: 0.4, fontSize: 14, color: "FFFFFF" });
     txt(s, "Oktober 2026", { x: M, y: 6.35, w: 7, h: 0.35, fontSize: 12, color: "9FB5AA" });
-    s.addNotes("Pembukaan (±30 detik). Kami mengoptimasi rute Granmax yang mengantar Makan Bergizi Gratis dari dapur SPPG ke sekolah di Surabaya. Masalahnya kami pecah menjadi dua tingkat: rute di dalam satu SPPG diselesaikan dengan algoritma pencarian dari Kuliah 2–3, dan pembagian sekolah ke SPPG dengan pencarian lokal dari Kuliah 6.");
+    s.addNotes("Pembukaan (±30 detik). Kami mengoptimasi rute Granmax yang mengantar Makan Bergizi Gratis dari dapur SPPG ke sekolah di Surabaya. Setiap sekolah dilayani SPPG terdekat, lalu rute di dalam tiap SPPG kami cari dengan tujuh algoritma pencarian dari Kuliah 2–3 dan kami bandingkan.");
   }
 
   // ============================================================ 2. masalah
@@ -269,8 +233,8 @@ async function main() {
       card(s, x, y, 2.85, 0.6, T.lt2);
       txt(s, c, { x: x + 0.15, y: y + 0.05, w: 2.6, h: 0.5, fontSize: 14, valign: "middle", color: C.text1 });
     });
-    txt(s, "Satu fitness: F = w·f₁/ref₁ + (1−w)·f₂/ref₂ + penalti", { x: 6.8, y: 6.35, w: 5.9, h: 0.4, fontSize: 13, italic: true, color: MUTED });
-    s.addNotes("Formulasi (±1 menit). Depot = SPPG, pelanggan = sekolah. Objektif kedua rata-rata waktu tiba, bukan total waktu tempuh, karena tanpa macet total waktu sebanding dengan jarak. Kedua objektif digabung jadi satu fitness F dengan bobot w; F ini bisa dipecah menjadi jumlah biaya per ruas perjalanan, sehingga bisa dipakai langsung sebagai biaya jalur di algoritma pencarian.");
+    txt(s, "Satu biaya: F = w·f₁/ref₁ + (1−w)·f₂/ref₂", { x: 6.8, y: 6.35, w: 5.9, h: 0.4, fontSize: 13, italic: true, color: MUTED });
+    s.addNotes("Formulasi (±1 menit). Depot = SPPG, pelanggan = sekolah. Objektif kedua rata-rata waktu tiba, bukan total waktu tempuh, karena tanpa macet total waktu sebanding dengan jarak. Kedua objektif digabung jadi satu biaya F dengan bobot w; F ini bisa dipecah menjadi jumlah biaya per ruas perjalanan, sehingga bisa dipakai langsung sebagai biaya jalur di algoritma pencarian.");
   }
 
   // ============================================================ 4. data
@@ -288,41 +252,36 @@ async function main() {
       txt(s, big_, { x: 9.35, y, w: 3.4, h: 0.6, fontSize: 30, bold: true, color: C.accent1, fontFace: "Cambria" });
       txt(s, small_, { x: 9.35, y: y + 0.6, w: 3.4, h: 0.55, fontSize: 14, color: MUTED });
     });
-    s.addNotes("Data (±45 detik). Sekolah dari OpenStreetMap, SPPG dari pemberitaan lalu di-geocode (koordinat perkiraan). Setiap SPPG mengambil sekolah acak dalam radius 3 km sehingga wilayah layanan tumpang tindih. Matriks jarak dan waktu dari OSRM mengikuti jalan sebenarnya.");
+    s.addNotes("Data (±45 detik). Sekolah dari OpenStreetMap, SPPG dari pemberitaan lalu di-geocode (koordinat perkiraan). Setiap SPPG mengambil sekolah acak dalam radius 3 km. Matriks jarak dan waktu dari OSRM mengikuti jalan sebenarnya.");
   }
 
-  // ============================================================ 5. dekomposisi
+  // ============================================================ 5. pendekatan
   section("Metode");
   {
-    const s = content("Metode", "Dua keputusan, dua keluarga algoritma");
-    const boxes = [
-      { x: M, title: "Bagian B · Kuliah 6", head: "Sekolah mana dilayani SPPG mana?",
-        body: `${CONFIG.instances[BIG].sppg_ids.length}${sup(CONFIG.instances[BIG].n_schools)} ≈ 10${sup(Math.round(spaceB))} kemungkinan → terlalu besar untuk ditelusuri, cocok untuk pencarian lokal`,
-        algos: "Hill Climbing (6 varian) · Simulated Annealing · Genetic Algorithm", ic: fa.FaExchangeAlt, col: T.accent2 },
-      { x: 6.95, title: "Bagian A · Kuliah 2–3", head: "Rute Granmax di dalam satu SPPG",
-        body: "paling banyak 3 Granmax × 3 sekolah = 9 sekolah → cukup kecil untuk pencarian sistematis yang menjamin optimal",
-        algos: "BFS · IDS · DFS + Branch & Bound · UCS · A* · Greedy Best-First", ic: fa.FaRoute, col: T.accent3 },
+    const s = content("Metode", "Sekolah ke SPPG terdekat, lalu cari rutenya");
+    const steps = [
+      ["1", "Penugasan", "Tiap sekolah dilayani SPPG terdekat (jarak jalan OSRM). SPPG tidak berbagi Granmax, jadi rute tiap SPPG bisa dicari sendiri.", fa.FaMapMarkedAlt, T.accent2],
+      ["2", "Pencarian rute", "Paling banyak belasan sekolah per SPPG → ruang rute cukup kecil untuk pencarian sistematis yang bisa menjamin optimal.", fa.FaRoute, T.accent3],
+      ["3", "Bandingkan", "Tujuh algoritma pada sub-masalah nyata dan sub-masalah acak k = 3–12: optimalitas, node, memori, waktu.", fa.FaBalanceScale, T.accent4],
     ];
-    for (const b of boxes) {
-      card(s, b.x, 1.5, 5.78, 3.9);
-      await circleIcon(s, b.ic, b.x + 0.3, 1.75, 0.8, b.col);
-      txt(s, b.title, { x: b.x + 1.3, y: 1.75, w: 4.3, h: 0.35, fontSize: 13, bold: true, color: MUTED });
-      txt(s, b.head, { x: b.x + 1.3, y: 2.1, w: 4.3, h: 0.5, fontSize: 20, bold: true, color: C.text1, fontFace: "Cambria" });
-      txt(s, b.body, { x: b.x + 0.3, y: 2.85, w: 5.2, h: 1.2, fontSize: 15, color: C.text1 });
-      txt(s, b.algos, { x: b.x + 0.3, y: 4.2, w: 5.2, h: 1.0, fontSize: 15, bold: true, color: b.col === T.accent2 ? "B4561A" : "1F5FAF" });
+    for (let i = 0; i < steps.length; i++) {
+      const x = M + i * 4.15;
+      card(s, x, 1.55, 3.95, 3.7);
+      await circleIcon(s, steps[i][3], x + 0.3, 1.85, 0.85, steps[i][4]);
+      txt(s, steps[i][0] + ". " + steps[i][1], { x: x + 1.3, y: 2.0, w: 2.5, h: 0.55, fontSize: 20, bold: true, fontFace: "Cambria", valign: "middle" });
+      txt(s, steps[i][2], { x: x + 0.3, y: 3.1, w: 3.35, h: 2.0, fontSize: 15, color: C.text1 });
     }
-    txt(s, "→", { x: 6.38, y: 3.0, w: 0.6, h: 0.6, fontSize: 30, bold: true, color: MUTED, align: "center" });
-    card(s, M, 5.65, W - 2 * M, 1.1, "FFF4E8");
+    card(s, M, 5.55, W - 2 * M, 1.2, "FFF4E8");
     txt(s, [
-      { text: "F(x) = Σ biaya rute optimal tiap SPPG", options: { bold: true, fontFace: "Cambria", fontSize: 19, breakLine: true } },
-      { text: "Granmax antar-SPPG tidak berbagi apa pun → dekomposisi ini eksak: pembagian terbaik + rute optimal = optimum masalah asli.", options: { fontSize: 14, color: MUTED } },
-    ], { x: M + 0.3, y: 5.75, w: W - 2 * M - 0.6, h: 0.95 });
-    s.addNotes("Ide utama (±1 menit). Masalah ini punya dua keputusan dengan sifat berbeda. Pembagian sekolah ke SPPG ruangnya sangat besar, jadi kami pakai pencarian lokal. Rute di dalam satu SPPG kecil, paling banyak 9 sekolah, jadi bisa dicari secara sistematis. Setiap pembagian dinilai dengan rute optimal tiap SPPG. Karena SPPG tidak saling berbagi Granmax, pemecahan ini tidak mengorbankan optimalitas.");
+      { text: "Biaya langkah = kontribusi ruas ke F", options: { bold: true, fontFace: "Cambria", fontSize: 19, breakLine: true } },
+      { text: "F adalah jumlah biaya per ruas perjalanan, jadi langsung dipakai sebagai biaya jalur g(n) di UCS dan A*.", options: { fontSize: 14, color: MUTED } },
+    ], { x: M + 0.3, y: 5.65, w: W - 2 * M - 0.6, h: 1.0 });
+    s.addNotes("Pendekatan (±1 menit). Kami menyederhanakan pembagian sekolah: tiap sekolah dilayani SPPG terdekat. Setelah itu tiap SPPG hanya mengurus beberapa sekolah, sehingga rutenya bisa dicari sistematis dengan algoritma pencarian. Fokus perbandingan ada di tujuh algoritma itu.");
   }
 
-  // ============================================================ 6. Bagian A: ruang keadaan + algoritma
+  // ============================================================ 6. ruang keadaan + algoritma
   {
-    const s = content("Metode", "Bagian A: rute satu SPPG sebagai masalah pencarian");
+    const s = content("Metode", "Rute satu SPPG sebagai masalah pencarian");
     const rows = [
       ["Keadaan", "sekolah tersisa, posisi, muatan Granmax, waktu, Granmax terpakai"],
       ["Aksi", "antar ke sekolah s  /  pulang ke SPPG"],
@@ -356,13 +315,13 @@ async function main() {
       { text: "Tiap Granmax hanya punya 1 sekolah urutan ke-1, ke-2, ke-3. Sekolah dipasangkan ke slot termurah (algoritma Hungaria) → batas bawah yang ketat dan tetap admissible.", options: { fontSize: 13, color: MUTED } },
     ], { x: M + 0.25, y: 5.25, w: 5.2, h: 1.45 });
     txt(s, "h1 (pembanding): jalan masuk termurah ke tiap sekolah tersisa", { x: 6.6, y: 5.5, w: 6.1, h: 0.9, fontSize: 14, color: MUTED });
-    s.addNotes("Bagian A (±1 menit). Keadaan, aksi, goal, dan biaya langkah mengikuti format pencarian di kuliah. Biaya langkah adalah kontribusi ruas itu ke fitness, jadi biaya jalur = biaya SPPG. Kami membandingkan enam algoritma. Untuk A* kami merancang dua heuristik admissible. h1 sederhana: jalan masuk termurah ke tiap sekolah. h2 memperhitungkan bahwa setiap Granmax hanya punya satu urutan pertama, jadi tidak semua sekolah bisa dianggap tiba langsung dari SPPG.");
+    s.addNotes("Ruang keadaan (±1 menit). Keadaan, aksi, goal, dan biaya langkah mengikuti format pencarian di kuliah. Biaya langkah adalah kontribusi ruas itu ke fitness, jadi biaya jalur = biaya SPPG. Kami membandingkan enam algoritma (A* dengan dua heuristik, jadi tujuh konfigurasi). Untuk A* kami merancang dua heuristik admissible. h1 sederhana: jalan masuk termurah ke tiap sekolah. h2 memperhitungkan bahwa setiap Granmax hanya punya satu urutan pertama, jadi tidak semua sekolah bisa dianggap tiba langsung dari SPPG.");
   }
 
-  // ============================================================ 7. Bagian A: hasil
+  // ============================================================ 7. hasil sub-masalah + skalabilitas
   section("Hasil");
   {
-    const s = content("Hasil", "Bagian A: heuristik yang baik memangkas pencarian");
+    const s = content("Hasil", "Heuristik yang baik memangkas pencarian");
     image(s, path.join(RES, "fig_search_scaling.png"), M, 1.35, 8.3, 3.6);
     const order = ["UCS", "A* (h1)", "A*", "DFS-B&B", "BFS", "GBFS"];
     s.addChart(pres.charts.BAR, [{ name: "Selisih dari optimum (%)", labels: order.map((a) => (a === "A*" ? "A* (h2)" : a)), values: order.map((a) => +RA[a].gap.toFixed(1)) }], {
@@ -370,129 +329,40 @@ async function main() {
       showValue: true, dataLabelPosition: "outEnd", dataLabelFormatCode: '0.0"%"', showLegend: false, showTitle: true,
       title: "Lebih mahal dari optimum", valAxisHidden: true, valAxisMinVal: 0, catAxisOrientation: "maxMin", ...chartBase,
     });
-    statCard(s, M, 5.2, 3.0, 1.6, `${RA.UCS.opt}/${RA.UCS.n}`, "sub-masalah nyata: UCS, A*, DFS-B&B selalu optimal");
+    statCard(s, M, 5.2, 3.0, 1.6, `${RA.UCS.opt}/${RA.UCS.n}`, `sub-masalah nyata: UCS dan A* selalu optimal (DFS-B&B ${RA["DFS-B&B"].opt}/${RA.UCS.n}, kena batas node)`);
     statCard(s, M + 3.15, 5.2, 3.0, 1.6, `${fmt(ratioUA, 0)}×`, "node lebih sedikit: A* (h2) vs UCS");
     statCard(s, M + 6.3, 5.2, 3.0, 1.6, `+${fmt(RA.BFS.gap, 0)}%`, "BFS/IDS: Granmax paling sedikit ≠ termurah");
     statCard(s, M + 9.45, 5.2, 2.68, 1.6, `+${fmt(RA.GBFS.gap, 0)}%`, "GBFS: cepat, tapi tersesat tanpa g");
     const hit = SEARCH.filter((a) => solvedUpTo(a) < KS[KS.length - 1]);
-    s.addNotes(`Hasil Bagian A (±1,5 menit). Grafik kiri: node yang diekspansi dan memori terhadap jumlah sekolah, skala log. Pada sub-masalah nyata, UCS, A* dan DFS-B&B selalu optimal. BFS dan IDS memilih Granmax paling sedikit sehingga sekolah kedua dan ketiga menunggu lama: rata-rata ${fmt(RA.BFS.gap, 1)}% lebih mahal. GBFS mengabaikan biaya yang sudah dikeluarkan sehingga mengunjungi sekolah jauh lebih dulu. A* dengan h2 mengekspansi ${fmt(ratioUA, 0)} kali lebih sedikit node daripada UCS, sedangkan h1 hanya ${fmt(RA.UCS.exp / RA["A* (h1)"].exp, 1)} kali. ${hit.length ? hit.map((a) => `${a} hanya selesai sampai k = ${solvedUpTo(a)}`).join("; ") + " sebelum batas node." : ""}`);
+    s.addNotes(`Hasil (±1,5 menit). Grafik kiri: node yang diekspansi dan memori terhadap jumlah sekolah, skala log. Pada sub-masalah nyata, UCS dan A* selalu optimal; DFS-B&B optimal selama tidak kena batas node. BFS dan IDS memilih Granmax paling sedikit sehingga sekolah kedua dan ketiga menunggu lama: rata-rata ${fmt(RA.BFS.gap, 1)}% lebih mahal. GBFS mengabaikan biaya yang sudah dikeluarkan sehingga mengunjungi sekolah jauh lebih dulu. A* dengan h2 mengekspansi ${fmt(ratioUA, 0)} kali lebih sedikit node daripada UCS, sedangkan h1 hanya ${fmt(RA.UCS.exp / RA["A* (h1)"].exp, 1)} kali. ${hit.length ? hit.map((a) => `${a} hanya selesai sampai k = ${solvedUpTo(a)}`).join("; ") + " sebelum batas node." : ""}`);
   }
 
-  // ============================================================ 8. Bagian B: algoritma
+  // ============================================================ 8. tabel perbandingan
   {
-    const s = content("Metode", "Bagian B: delapan algoritma pencarian lokal");
-    const PC = CONFIG.assignment.algorithms;
-    const algos = [
-      ["HC", "Pindah ke tetangga terbaik; berhenti di optimum lokal", fa.FaMountain],
-      ["HC-Sideways", `Boleh langkah datar (ΔF = 0), maks ${PC["HC-Sideways"].max_sideways}×`, fa.FaArrowRight],
-      ["Stochastic HC", "Acak di antara langkah yang memperbaiki", fa.FaRandom],
-      ["Random-Walk HC", `Peluang ${fmt(PC["Random-Walk HC"].p_walk, 2)} langkah acak, selain itu terbaik`, fa.FaShoePrints],
-      ["RR-HC", "Ulang HC dari pembagian acak sampai anggaran habis", fa.FaRedo],
-      ["EHC", "BFS dari optimum lokal sampai ketemu yang lebih baik", fa.FaSitemap],
-      ["SA", "Terima langkah buruk dengan peluang e^(−ΔF/T)", fa.FaThermometerHalf],
-      ["GA", "Kromosom = SPPG tiap sekolah, fitness = 1/F", fa.FaDna],
-    ];
-    const cw = 2.92, ch = 1.95, gx = 0.15, gy = 0.2;
-    for (let i = 0; i < algos.length; i++) {
-      const x = M + (i % 4) * (cw + gx), y = 1.45 + Math.floor(i / 4) * (ch + gy);
-      const [a, idea, ic] = algos[i];
-      card(s, x, y, cw, ch);
-      await circleIcon(s, ic, x + 0.2, y + 0.22, 0.6, LS_COLOR[a]);
-      txt(s, a, { x: x + 0.92, y: y + 0.27, w: cw - 1.0, h: 0.5, fontSize: 17, bold: true, fontFace: "Cambria", valign: "middle" });
-      txt(s, idea, { x: x + 0.2, y: y + 0.95, w: cw - 0.4, h: 0.9, fontSize: 13, color: C.text1 });
-    }
-    txt(s, [
-      { text: "Tetangga: ", options: { bold: true } },
-      { text: "pindah satu sekolah ke SPPG lain, atau tukar dua sekolah antar-SPPG.  " },
-      { text: "Adil: ", options: { bold: true } },
-      { text: `${fmt(CONFIG.assignment.budget_evals)} evaluasi/run, ${CONFIG.assignment.n_seeds} seed, titik awal acak yang sama per seed.` },
-    ], { x: M, y: 5.95, w: W - 2 * M, h: 0.8, fontSize: 15 });
-    s.addNotes("Bagian B (±1 menit). Semua algoritma bergerak di ruang pembagian: vektor nomor SPPG untuk setiap sekolah. Fitness = jumlah biaya rute optimal tiap SPPG, dihitung oleh evaluator yang hasilnya identik dengan UCS/A* tetapi ribuan kali lebih cepat. Enam varian Hill Climbing berbeda dalam cara melangkah dan cara keluar dari optimum lokal; SA menerima langkah buruk secara probabilistik; GA memakai populasi.");
-  }
-
-  // ============================================================ 9. Bagian B: hasil
-  {
-    const s = content("Hasil", "Bagian B: kunci = cara keluar dari optimum lokal");
-    image(s, path.join(RES, BIG, "fig_ls_boxplot.png"), M, 1.35, 7.0, 4.3);
-    s.addChart(pres.charts.BAR, [{ name: "Sukses", labels: LOCAL, values: LOCAL.map((a) => +(LB[a].success_rate * 100).toFixed(0)) }], {
-      x: 7.75, y: 1.35, w: 4.98, h: 4.3, barDir: "bar", chartColors: LOCAL.map((a) => LS_COLOR[a]),
-      showValue: true, dataLabelPosition: "outEnd", dataLabelFormatCode: '0"%"', showLegend: false, showTitle: true,
-      title: `Run yang mencapai terbaik diketahui (${BIG})`, valAxisHidden: true, valAxisMinVal: 0, valAxisMaxVal: 115,
-      catAxisOrientation: "maxMin", ...chartBase,
+    const s = content("Hasil", "Perbandingan tujuh algoritma pada sub-masalah nyata");
+    const head = ["Algoritma", "Optimal", "Selisih rata-rata", "Node diekspansi", "Memori maks. (node)", "Waktu total"].map((t) => ({
+      text: t, options: { bold: true, color: "FFFFFF", fill: { color: T.accent1 }, align: "center" } }));
+    const rows = SEARCH.map((a) => {
+      const r = RA[a];
+      const cells = [a === "A*" ? "A* (h2)" : a, `${r.opt}/${r.n}`, r.gap < 1e-6 ? "0%" : `${fmt(r.gap, 1)}%`, fmt(r.exp), fmt(r.mem), `${fmt(r.rt, 2)} s`];
+      return cells.map((t, i) => ({ text: t, options: { align: i ? "center" : "left", bold: a === "A*", fill: { color: a === "A*" ? "EAF2FC" : "FFFFFF" } } }));
     });
-    const tHR = lsTest(BIG, "HC", "RR-HC");
-    bullets(s, [
-      `${SMALL}: semua 8 algoritma mencapai solusi yang sama di semua seed.`,
-      `${BIG}: HC biasa sering terjebak; sideways tidak membantu (fitness real, tanpa plateau).`,
-      `RR-HC (rekomendasi kuliah) vs HC: p = ${pstr(+tHR.p_holm)}. EHC paling hemat evaluasi.`,
-    ], { x: M, y: 5.8, w: W - 2 * M, h: 1.1, fontSize: 15 });
-    s.addNotes(`Hasil Bagian B (±1,5 menit). Urutan rata-rata di ${BIG}: ${rB.join(" < ")}. HC, HC-Sideways, dan Stochastic HC berhenti di optimum lokal; HC-Sideways identik dengan HC karena fitness kita bilangan real dari jarak jalan asli, jadi hampir tidak ada tetangga yang sama persis. Algoritma dengan mekanisme keluar dari optimum lokal jauh lebih andal.`);
+    s.addTable([head, ...rows], { x: M, y: 1.5, w: W - 2 * M, colW: [2.4, 1.5, 2.3, 2.2, 2.2, 1.53], fontSize: 15, rowH: 0.52,
+      border: { type: "solid", pt: 0.5, color: "D6DCD8" }, valign: "middle" });
+    txt(s, `Optimum acuan = biaya UCS. Hanya A* (h2) optimal sekaligus hemat node; GBFS tercepat tetapi ${fmt(RA.GBFS.gap, 0)}% lebih mahal.`,
+      { x: M, y: 6.0, w: W - 2 * M, h: 0.6, fontSize: 15, color: MUTED });
+    s.addNotes("Ringkasan (±45 detik). Kolom optimal menghitung sub-masalah yang selesai dengan biaya sama dengan UCS. Pencarian yang kena batas node tidak dihitung optimal.");
   }
 
-  // ============================================================ 10. konvergensi
-  {
-    const s = content("Hasil", "Efisiensi: berapa evaluasi sampai solusi terbaik?");
-    image(s, path.join(RES, BIG, "fig_ls_konvergensi.png"), M, 1.35, 7.9, 5.4);
-    const effOrder = [...LOCAL].sort((a, b) => +LB[a].evals_to_best_median - +LB[b].evals_to_best_median);
-    s.addChart(pres.charts.BAR, [{ name: "Evaluasi (ribu)", labels: effOrder, values: effOrder.map((a) => +(LB[a].evals_to_best_median / 1000).toFixed(1)) }], {
-      x: 8.7, y: 1.35, w: 4.03, h: 4.0, barDir: "bar", chartColors: effOrder.map((a) => LS_COLOR[a]),
-      showValue: true, dataLabelPosition: "outEnd", dataLabelFormatCode: "0.0", showLegend: false, showTitle: true,
-      title: "Median evaluasi s.d. terbaik (ribu)", valAxisHidden: true, valAxisMinVal: 0, catAxisOrientation: "maxMin", ...chartBase,
-    });
-    txt(s, `SA paling lambat per run (${fmt(LB.SA.runtime_s_mean, 0)} s) karena tiap langkah acak menghasilkan himpunan sekolah baru; EHC ${fmt(LB.EHC.runtime_s_mean, 1)} s.`,
-      { x: 8.7, y: 5.5, w: 4.03, h: 1.3, fontSize: 14, color: MUTED });
-    s.addNotes("Konvergensi (±1 menit). Sumbu x skala log. Varian HC turun paling cepat di awal lalu mendatar. EHC turun hampir secepat HC dan terus membaik karena di optimum lokal ia mencari kombinasi dua langkah. SA sengaja bertahan di suhu tinggi dulu. GA lebih lambat di awal karena setiap individu dievaluasi penuh.");
-  }
-
-  // ============================================================ 11. komparasi menyeluruh
-  {
-    const s = content("Hasil", "Dua tingkat > metaheuristik terintegrasi");
-    const items = [["Greedy", +integ[BIG].Greedy.fitness_mean, "52514E"],
-      ...INTEG.map((a) => [`${a} terintegrasi`, +integ[BIG][a].fitness_mean, "EB6834"]),
-      ...LOCAL.map((a) => [`${a} (2 tingkat)`, +LB[a].fitness_mean, "2A78D6"])];
-    items.sort((a, b) => a[1] - b[1]);
-    s.addChart(pres.charts.BAR, [{ name: "Selisih", labels: items.map((x) => x[0]), values: items.map((x) => +(((x[1] - bkB) / bkB) * 100).toFixed(2)) }], {
-      x: M, y: 1.35, w: 7.6, h: 5.45, barDir: "bar", chartColors: items.map((x) => x[2]),
-      showValue: true, dataLabelPosition: "outEnd", dataLabelFormatCode: '0.00"%"', showLegend: false, showTitle: true,
-      title: `Selisih rata-rata dari terbaik diketahui, ${BIG}`, valAxisHidden: true, valAxisMinVal: 0, catAxisOrientation: "maxMin",
-      ...chartBase, catAxisLabelFontSize: 11,
-    });
-    statCard(s, 8.5, 1.45, 4.23, 1.55, nBetter === 8 ? "8 dari 8" : `${nBetter} dari 8`, `algoritma dua tingkat lebih baik dari ${integBest} terintegrasi (pembanding terbaik)`);
-    statCard(s, 8.5, 3.15, 4.23, 1.55, `−${fmt(savePct, 1)}%`, `biaya bensin vs Greedy (${rp(g.cost_rp)} → ${rp(sol.cost_rp)}/hari)`);
-    txt(s, `Algoritma yang sama jauh lebih kuat di ruang pembagian + rute optimal: HC terintegrasi ${fmt(+integ[BIG].HC.fitness_mean, 4)} (kalah dari Greedy), HC dua tingkat ${fmt(+LB.HC.fitness_mean, 4)}.`,
-      { x: 8.5, y: 4.9, w: 4.23, h: 1.9, fontSize: 14 });
-    s.addNotes(`Komparasi menyeluruh (±1 menit). Oranye: metaheuristik terintegrasi (HC, SA, GA) yang mencari langsung di ruang rute penuh. Biru: pendekatan dua tingkat. ${integBest} terintegrasi rata-rata ${fmt(((+ib.fitness_mean - bkB) / bkB) * 100, 2)}% di atas terbaik diketahui. Pesan utamanya: representasi yang sesuai struktur masalah lebih menentukan daripada pilihan metaheuristik.`);
-  }
-
-  // ============================================================ 12. trade-off
-  if (sweep.length) {
-    const s = content("Hasil", "Trade-off biaya bensin vs waktu tiba");
-    image(s, path.join(RES, BIG, "fig_ls_tradeoff.png"), M, 1.35, 7.6, 5.4);
-    const algo = sweep[0].algorithm;
-    const best = {};
-    for (const r of sweep) if (!best[+r.w] || +r.fitness < +best[+r.w].fitness) best[+r.w] = r;
-    const ws = Object.keys(best).map(Number).sort((a, b) => b - a);
-    ws.forEach((w, i) => {
-      const r = best[w];
-      const y = 1.45 + i * 0.95;
-      card(s, 8.5, y, 4.23, 0.82);
-      txt(s, `w = ${fmt(w, 2)}`, { x: 8.7, y: y + 0.1, w: 1.2, h: 0.62, fontSize: 15, bold: true, valign: "middle" });
-      txt(s, `${rp(r.cost_rp)} · ${fmt(r.mean_arrival_min, 1)} mnt`, { x: 9.9, y: y + 0.1, w: 2.75, h: 0.62, fontSize: 15, valign: "middle", color: C.text1 });
-    });
-    txt(s, "w = 1: murni bensin · w = 0: murni waktu", { x: 8.5, y: 6.25, w: 4.23, h: 0.4, fontSize: 12, color: MUTED });
-    s.addNotes(`Trade-off (±1 menit). ${algo} dengan rute optimal dijalankan untuk lima bobot w. Dari solusi termurah ke tercepat, rata-rata waktu tiba turun ${fmt(+best[1].mean_arrival_min - +best[0].mean_arrival_min, 1)} menit tetapi biaya naik ${rp(+best[0].cost_rp - +best[1].cost_rp)} per hari. Pengelola SPPG bisa memilih bobot sesuai prioritasnya.`);
-  }
-
-  // ============================================================ 13. rute terbaik
+  // ============================================================ 9. rute terbaik
   {
     const s = content("Hasil", "Rute terbaik di peta");
     image(s, routePng, M, 1.35, 5.6, 5.55);
-    const perYear = (g.cost_rp - sol.cost_rp) * 200;
     const stats = [
-      [rp(sol.cost_rp), `bensin per hari (${fmt(sol.km, 1)} km, ${sol.n_vehicles} Granmax)`],
-      [`${fmt(sol.mean_arrival_min, 1)} mnt`, `rata-rata makanan tiba; terakhir ${fmt(sol.makespan_min, 0)} mnt`],
-      [`−${rp(g.cost_rp - sol.cost_rp)}`, "per hari dibanding Greedy"],
-      [`±${rp(perYear)}`, `per tahun (asumsi 200 hari sekolah) untuk ${CONFIG.instances[BIG].n_schools} sekolah`],
+      [rp(best.cost_rp), `bensin per hari (${fmt(best.km, 1)} km, ${best.n_vehicles} Granmax)`],
+      [`${fmt(best.mean_arrival_min, 1)} mnt`, `rata-rata makanan tiba; terakhir ${fmt(best.makespan_min, 0)} mnt`],
+      [`−${fmt(savePct, 0)}%`, `bensin vs pengiriman langsung (${rp(refCost)}/hari)`],
+      [`+${fmt(best.mean_arrival_min - refTime, 1)} mnt`, `rata-rata tiba vs pengiriman langsung (${fmt(refTime, 1)} mnt)`],
     ];
     stats.forEach(([v, l], i) => {
       const x = 6.75 + (i % 2) * 3.05, y = 1.55 + Math.floor(i / 2) * 2.05;
@@ -500,42 +370,19 @@ async function main() {
     });
     txt(s, "Demo interaktif: results/<instance>/peta_rute_terbaik.html (rute per Granmax, jam tiba tiap sekolah).",
       { x: 6.75, y: 5.75, w: 5.98, h: 0.9, fontSize: 14, color: C.text1 });
-    s.addNotes(`Rute (±45 detik). Solusi terbaik ditemukan oleh ${top} + rute optimal. Warna menunjukkan SPPG asal, angka urutan kunjungan, garis mengikuti jalan asli. Bila waktu memungkinkan, buka peta interaktif.`);
+    s.addNotes(`Rute (±45 detik). Rute optimal (A*) di setiap SPPG. Warna menunjukkan SPPG asal, angka urutan kunjungan, garis mengikuti jalan asli. Bila waktu memungkinkan, buka peta interaktif.`);
   }
 
-  // ============================================================ 14. sensitivitas
-  {
-    const s = content("Hasil", "Sensitivitas: kapasitas penting, batas 3 jam tidak");
-    const qs = [1, 2, 3, 4];
-    s.addChart(pres.charts.LINE, [{ name: "Biaya bensin (ribu Rp)", labels: qs.map((q) => `${q}`), values: qs.map((q) => +(sv("kapasitas", q, "cost_rp") / 1000).toFixed(1)) }], {
-      x: M, y: 1.45, w: 5.9, h: 4.2, chartColors: [T.accent2], lineSize: 2, lineDataSymbol: "circle", lineDataSymbolSize: 9,
-      showValue: true, dataLabelPosition: "t", dataLabelFormatCode: "0", showLegend: false, showTitle: true,
-      title: "Biaya bensin (ribu Rp) vs maks sekolah per Granmax", valAxisMinVal: 0, ...chartBase,
-    });
-    s.addChart(pres.charts.LINE, [
-      { name: "Sekolah terakhir tiba (mnt)", labels: TF.map((v) => `${v}×`), values: TF.map((v) => +sv("macet", v, "makespan_min").toFixed(0)) },
-      { name: "Batas 3 jam", labels: TF.map((v) => `${v}×`), values: TF.map(() => CONFIG.problem.max_delivery_time_min) },
-    ], {
-      x: 6.83, y: 1.45, w: 5.9, h: 4.2, chartColors: [T.accent3, "C0392B"], lineSize: 2, lineDataSymbol: "circle",
-      lineDataSymbolSize: 8, showLegend: true, legendPos: "b", showTitle: true, title: "Waktu tiba terakhir vs faktor kemacetan",
-      valAxisMinVal: 0, valAxisMaxVal: 200, ...chartBase,
-    });
-    const q1 = sv("kapasitas", 1, "cost_rp"), q3 = sv("kapasitas", 3, "cost_rp");
-    txt(s, `Jika 1 Granmax hanya ke 1 sekolah, biaya naik ${fmt((q1 / q3 - 1) * 100, 0)}%. Bahkan dengan macet ${TF[TF.length - 1]}× (±${fmt(SPEED / TF[TF.length - 1], 0)} km/jam), sekolah terakhir tiba dalam ${fmt(sv("macet", TF[TF.length - 1], "makespan_min"), 0)} menit.`,
-      { x: M, y: 5.9, w: W - 2 * M, h: 0.85, fontSize: 16 });
-    s.addNotes(`Sensitivitas (±45 detik). Konsumsi 10 km/L menaikkan biaya sekitar ${fmt((sv("km_per_liter", 10, "cost_rp") / sv("km_per_liter", 14, "cost_rp") - 1) * 100, 0)}% tanpa mengubah rute. Batas 3 jam tidak aktif; bila diperketat ke 2 jam (anjuran WHO), batas mulai terlampaui saat waktu tempuh sekitar ${F120 || ">" + TF[TF.length - 1]} kali kondisi lancar.`);
-  }
-
-  // ============================================================ 15. kesimpulan
+  // ============================================================ 10. kesimpulan
   section("Penutup");
   {
     const s = pres.addSlide({ masterName: "DARK", sectionTitle: "Penutup" });
     txt(s, "Kesimpulan", { x: M, y: 0.55, w: 8, h: 0.8, fontSize: 36, bold: true, color: "FFFFFF", fontFace: "Cambria" });
     const pts = [
-      ["Dekomposisi eksak: pembagian sekolah (pencarian lokal) + rute per SPPG (algoritma pencarian).", fa.FaSitemap],
-      [`Bagian A: UCS, A*, DFS-B&B optimal; BFS/IDS +${fmt(RA.BFS.gap, 0)}%, GBFS +${fmt(RA.GBFS.gap, 0)}%. Heuristik h2: ${fmt(ratioUA, 0)}× lebih sedikit node.`, fa.FaRoute],
-      [`Bagian B: HC biasa terjebak; mekanisme keluar (RR-HC, EHC, SA, GA, random walk) yang menentukan. Terbaik: ${rB.slice(0, 3).join(" ≈ ")}${top3ns ? " (tidak beda signifikan)" : ""}.`, fa.FaMountain],
-      [`Lebih baik dari metaheuristik terintegrasi; bensin −${fmt(savePct, 0)}% vs Greedy. Batas 3 jam tidak aktif.`, fa.FaTrophy],
+      ["Sekolah ke SPPG terdekat, lalu rute tiap SPPG dicari sebagai masalah pencarian di ruang keadaan.", fa.FaSitemap],
+      [`UCS, A*, DFS-B&B optimal (bila selesai); BFS/IDS +${fmt(RA.BFS.gap, 0)}%, GBFS +${fmt(RA.GBFS.gap, 0)}% lebih mahal dari optimum.`, fa.FaRoute],
+      [`Heuristik h2 (penugasan slot) membuat A* ${fmt(ratioUA, 0)}× lebih hemat node daripada UCS; heuristik lebih menentukan daripada algoritmanya.`, fa.FaMountain],
+      [`Rute optimal menghemat bensin ${fmt(savePct, 0)}% dibanding pengiriman langsung; batas 3 jam tidak aktif.`, fa.FaTrophy],
     ];
     for (let i = 0; i < pts.length; i++) {
       const y = 1.55 + i * 1.1;

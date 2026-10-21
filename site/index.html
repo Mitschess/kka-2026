@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rute MBG Surabaya</title>
-<meta name="description" content="Optimasi distribusi Makan Bergizi Gratis dari SPPG ke sekolah di Surabaya: alokasi SPPG (HC, SA, GA) dan rute terbaik (UCS, A*, DFS, BFS, Greedy).">
+<meta name="description" content="Optimasi distribusi Makan Bergizi Gratis dari SPPG ke sekolah di Surabaya: rute terbaik dengan algoritma pencarian (UCS, A*, DFS, BFS, IDS, Greedy).">
 <style>
   :root { --bg:#f6f6f4; --surface:#fff; --ink:#1d1d1b; --muted:#6b6b66; --line:#e2e2de; --accent:#2a78d6; --best:#eaf2fc; }
   @media (prefers-color-scheme: dark) {
@@ -44,86 +44,56 @@
   <h1>Optimasi Distribusi MBG di Surabaya</h1>
   <p class=lead>Pengiriman Makan Bergizi Gratis dari SPPG (dapur) ke sekolah memakai Granmax,
     dimodelkan sebagai <b>Multi-Depot Vehicle Routing Problem bi-objektif</b> (biaya bensin
-    &amp; waktu tiba), dipecah menjadi dua case independen:</p>
+    &amp; waktu tiba). Tiap sekolah dilayani SPPG terdekat, lalu <b>urutan kunjungan Granmax</b> di
+    dalam tiap SPPG dicari dengan algoritma pencarian (Kuliah 2 &amp; 3): BFS, IDS, DFS + branch and bound,
+    Uniform-Cost Search, A* (dua heuristik), dan Greedy best-first.</p>
   <ul>
-    <li><b>Case 1 — alokasi SPPG:</b> sekolah mana dilayani SPPG mana. Dibandingkan: Hill Climbing,
-      Simulated Annealing, Genetic Algorithm (pencarian lokal, Kuliah 6).</li>
-    <li><b>Case 2 — rute terbaik:</b> urutan kunjungan Granmax di dalam satu SPPG. Dibandingkan:
-      Uniform-Cost Search, A*, DFS (branch and bound), BFS, Greedy best-first (pencarian, Kuliah 2 &amp; 3).</li>
     <li>Data: sekolah dari OpenStreetMap, lokasi SPPG dari berita (koordinat perkiraan), jarak &amp; waktu tempuh jalan asli dari OSRM.</li>
   </ul>
   <section>
-    <h2>Case 2 — skalabilitas pencarian rute <span class=muted>(semua ukuran sub-masalah)</span></h2>
-    <p class=muted>UCS, A* dan DFS (branch and bound) selalu optimal; BFS dan Greedy best-first tidak.
+    <h2>Skalabilitas pencarian rute <span class=muted>(semua ukuran sub-masalah)</span></h2>
+    <p class=muted>UCS, A* dan DFS (branch and bound) optimal bila pencarian selesai sebelum batas node; BFS, IDS dan Greedy best-first tidak.
       A* mengekspansi node jauh lebih sedikit seiring k membesar karena heuristik Hungaria (h2).</p>
     <div class=gallery><figure><a href="fig_search_scaling.png"><img src="fig_search_scaling.png" alt="Skalabilitas pencarian (node diekspansi vs jumlah sekolah k)" loading="lazy"></a><figcaption>Skalabilitas pencarian (node diekspansi vs jumlah sekolah k)</figcaption></figure><figure><a href="fig_search_gap.png"><img src="fig_search_gap.png" alt="Selisih biaya terhadap optimum per algoritma (sub-masalah k ≤ 9)" loading="lazy"></a><figcaption>Selisih biaya terhadap optimum per algoritma (sub-masalah k ≤ 9)</figcaption></figure></div>
   </section>
   
 <section>
   <h2>surabaya_utara <span class=muted>· 3 SPPG, 18 sekolah</span></h2>
-
-  <h3>Case 1 — Alokasi SPPG → sekolah <span class=muted>(Hill Climbing, Simulated Annealing, Genetic Algorithm)</span></h3>
   <div class=links>
-    <a class=primary href="surabaya_utara/animasi.html#stage=1">▶ Animasi alokasi</a>
+    <a class=primary href="surabaya_utara/animasi.html#stage=1">▶ Animasi pencarian rute</a>
+    <a href="surabaya_utara/animasi.html#stage=2">Animasi pengiriman</a>
     <a href="surabaya_utara/peta_rute_terbaik.html">Peta rute terbaik</a>
-    <a href="surabaya_utara/ls_best_routes.txt">Rute terbaik (teks)</a>
-  </div>
-  <div class=tablewrap><table>
-    <thead><tr><th>Algoritma</th><th>Fitness (mean ± std)</th><th>Biaya bensin</th>
-      <th>Rata-rata tiba</th><th>Waktu/run</th></tr></thead>
-    <tbody><tr><td>HC</td><td>1.9951 ± 0.0000</td><td>Rp59,973</td><td>13.0 mnt</td><td>0.1 s</td></tr><tr class="best"><td>SA</td><td>1.9951 ± 0.0000</td><td>Rp59,973</td><td>13.0 mnt</td><td>7.4 s</td></tr><tr><td>GA</td><td>1.9951 ± 0.0000</td><td>Rp59,973</td><td>13.0 mnt</td><td>10.4 s</td></tr></tbody>
-  </table></div>
-  <p class=muted>Bobot w = 0.5, 30 seed,
-    200,000 evaluasi per run. Fitness lebih kecil = lebih baik.
-    Rute tiap SPPG selalu dihitung optimal (Router), jadi fitness di atas murni mengukur kualitas alokasi.</p>
-  <div class=gallery><figure><a href="surabaya_utara/fig_ls_tradeoff.png"><img src="surabaya_utara/fig_ls_tradeoff.png" alt="Trade-off biaya vs waktu: HC/SA/GA + rute optimal (sweep bobot w = 0 … 1)" loading="lazy"></a><figcaption>Trade-off biaya vs waktu: HC/SA/GA + rute optimal (sweep bobot w = 0 … 1)</figcaption></figure><figure><a href="surabaya_utara/fig_ls_konvergensi.png"><img src="surabaya_utara/fig_ls_konvergensi.png" alt="Konvergensi HC, SA, GA (median 30 seed)" loading="lazy"></a><figcaption>Konvergensi HC, SA, GA (median 30 seed)</figcaption></figure><figure><a href="surabaya_utara/fig_ls_boxplot.png"><img src="surabaya_utara/fig_ls_boxplot.png" alt="Sebaran fitness akhir 30 seed" loading="lazy"></a><figcaption>Sebaran fitness akhir 30 seed</figcaption></figure><figure><a href="surabaya_utara/fig_rute_terbaik.png"><img src="surabaya_utara/fig_rute_terbaik.png" alt="Rute terbaik keseluruhan" loading="lazy"></a><figcaption>Rute terbaik keseluruhan</figcaption></figure></div>
-
-  <h3>Case 2 — Rute terbaik di dalam satu SPPG <span class=muted>(UCS, A*, DFS, BFS, Greedy)</span></h3>
-  <div class=links>
-    <a class=primary href="surabaya_utara/animasi.html#stage=2">▶ Animasi pencarian rute</a>
+    <a href="surabaya_utara/rute_terbaik.txt">Rute terbaik (teks)</a>
   </div>
   <div class=tablewrap><table>
     <thead><tr><th>Algoritma</th><th>Status</th><th>Gap rata-rata</th>
       <th>Node diekspansi (total)</th><th>Waktu (total)</th></tr></thead>
-    <tbody><tr><td>UCS</td><td>optimal</td><td>0.0%</td><td>2,448</td><td>10.6 ms</td></tr><tr class="best"><td>A*</td><td>optimal</td><td>0.0%</td><td>210</td><td>20.8 ms</td></tr><tr><td>DFS</td><td>optimal</td><td>0.0%</td><td>6,417</td><td>15.2 ms</td></tr><tr><td>BFS</td><td>0% optimal</td><td>72.1%</td><td>3,048</td><td>9.5 ms</td></tr><tr><td>Greedy</td><td>0% optimal</td><td>72.9%</td><td>24</td><td>2.9 ms</td></tr></tbody>
+    <tbody><tr><td>UCS</td><td>optimal</td><td>0.0%</td><td>39,059</td><td>353.4 ms</td></tr><tr class="best"><td>A* (h2)</td><td>optimal</td><td>0.0%</td><td>2,216</td><td>353.8 ms</td></tr><tr><td>A* (h1)</td><td>optimal</td><td>0.0%</td><td>37,792</td><td>827.9 ms</td></tr><tr><td>DFS + B&B</td><td>optimal</td><td>0.0%</td><td>3,429,930</td><td>9791.0 ms</td></tr><tr><td>IDS</td><td>0% optimal</td><td>140.5%</td><td>2,081,202</td><td>6236.2 ms</td></tr><tr><td>BFS</td><td>0% optimal</td><td>104.2%</td><td>40,102</td><td>186.4 ms</td></tr><tr><td>Greedy best-first</td><td>0% optimal</td><td>120.4%</td><td>115</td><td>7.1 ms</td></tr></tbody>
   </table></div>
-  <p class=muted>Diagregasi dari semua SPPG di instance ini (sub-masalah nyata: sekolah milik tiap SPPG
-    pada penugasan terbaik Case 1) — sub-masalah nyata dianimasikan di surabaya_utara/animasi.html#stage=2 (SPPG terbesar, penugasan terbaik HC). UCS, A* dan DFS (branch and bound) menjamin rute
-    optimal; BFS menjamin jumlah Granmax paling sedikit (bukan termurah); Greedy (best-first) tercepat
-    tapi tidak menjamin optimal.</p>
+  <p class=muted>Diagregasi dari semua SPPG di instance ini (sekolah dibagi ke SPPG terdekat).
+    UCS, A*, dan DFS + branch and bound menjamin rute optimal; BFS dan IDS menjamin jumlah Granmax
+    paling sedikit (bukan termurah); Greedy best-first tercepat tapi tidak menjamin optimal.
+    Gap dihitung terhadap biaya UCS.</p>
+  <div class=gallery><figure><a href="surabaya_utara/fig_rute_terbaik.png"><img src="surabaya_utara/fig_rute_terbaik.png" alt="Rute terbaik (A*): tiap warna = satu SPPG" loading="lazy"></a><figcaption>Rute terbaik (A*): tiap warna = satu SPPG</figcaption></figure></div>
 </section>
 <section>
   <h2>surabaya_6sppg <span class=muted>· 6 SPPG, 42 sekolah</span></h2>
-
-  <h3>Case 1 — Alokasi SPPG → sekolah <span class=muted>(Hill Climbing, Simulated Annealing, Genetic Algorithm)</span></h3>
   <div class=links>
-    <a class=primary href="surabaya_6sppg/animasi.html#stage=1">▶ Animasi alokasi</a>
+    <a class=primary href="surabaya_6sppg/animasi.html#stage=1">▶ Animasi pencarian rute</a>
+    <a href="surabaya_6sppg/animasi.html#stage=2">Animasi pengiriman</a>
     <a href="surabaya_6sppg/peta_rute_terbaik.html">Peta rute terbaik</a>
-    <a href="surabaya_6sppg/ls_best_routes.txt">Rute terbaik (teks)</a>
-  </div>
-  <div class=tablewrap><table>
-    <thead><tr><th>Algoritma</th><th>Fitness (mean ± std)</th><th>Biaya bensin</th>
-      <th>Rata-rata tiba</th><th>Waktu/run</th></tr></thead>
-    <tbody><tr><td>HC</td><td>2.0818 ± 0.0355</td><td>Rp135,278</td><td>17.5 mnt</td><td>1.1 s</td></tr><tr class="best"><td>SA</td><td>2.0575 ± 0.0003</td><td>Rp129,187</td><td>17.4 mnt</td><td>58.1 s</td></tr><tr><td>GA</td><td>2.0581 ± 0.0008</td><td>Rp130,022</td><td>17.4 mnt</td><td>19.8 s</td></tr></tbody>
-  </table></div>
-  <p class=muted>Bobot w = 0.5, 30 seed,
-    200,000 evaluasi per run. Fitness lebih kecil = lebih baik.
-    Rute tiap SPPG selalu dihitung optimal (Router), jadi fitness di atas murni mengukur kualitas alokasi.</p>
-  <div class=gallery><figure><a href="surabaya_6sppg/fig_ls_tradeoff.png"><img src="surabaya_6sppg/fig_ls_tradeoff.png" alt="Trade-off biaya vs waktu: HC/SA/GA + rute optimal (sweep bobot w = 0 … 1)" loading="lazy"></a><figcaption>Trade-off biaya vs waktu: HC/SA/GA + rute optimal (sweep bobot w = 0 … 1)</figcaption></figure><figure><a href="surabaya_6sppg/fig_ls_konvergensi.png"><img src="surabaya_6sppg/fig_ls_konvergensi.png" alt="Konvergensi HC, SA, GA (median 30 seed)" loading="lazy"></a><figcaption>Konvergensi HC, SA, GA (median 30 seed)</figcaption></figure><figure><a href="surabaya_6sppg/fig_ls_boxplot.png"><img src="surabaya_6sppg/fig_ls_boxplot.png" alt="Sebaran fitness akhir 30 seed" loading="lazy"></a><figcaption>Sebaran fitness akhir 30 seed</figcaption></figure><figure><a href="surabaya_6sppg/fig_rute_terbaik.png"><img src="surabaya_6sppg/fig_rute_terbaik.png" alt="Rute terbaik keseluruhan" loading="lazy"></a><figcaption>Rute terbaik keseluruhan</figcaption></figure></div>
-
-  <h3>Case 2 — Rute terbaik di dalam satu SPPG <span class=muted>(UCS, A*, DFS, BFS, Greedy)</span></h3>
-  <div class=links>
-    <a class=primary href="surabaya_6sppg/animasi.html#stage=2">▶ Animasi pencarian rute</a>
+    <a href="surabaya_6sppg/rute_terbaik.txt">Rute terbaik (teks)</a>
   </div>
   <div class=tablewrap><table>
     <thead><tr><th>Algoritma</th><th>Status</th><th>Gap rata-rata</th>
       <th>Node diekspansi (total)</th><th>Waktu (total)</th></tr></thead>
-    <tbody><tr><td>UCS</td><td>optimal</td><td>0.0%</td><td>15,255</td><td>68.6 ms</td></tr><tr class="best"><td>A*</td><td>optimal</td><td>0.0%</td><td>716</td><td>78.2 ms</td></tr><tr><td>DFS</td><td>optimal</td><td>0.0%</td><td>130,141</td><td>315.3 ms</td></tr><tr><td>BFS</td><td>0% optimal</td><td>44.8%</td><td>16,262</td><td>76.3 ms</td></tr><tr><td>Greedy</td><td>0% optimal</td><td>40.9%</td><td>125</td><td>9.7 ms</td></tr></tbody>
+    <tbody><tr><td>UCS</td><td>optimal</td><td>0.0%</td><td>87,499</td><td>763.7 ms</td></tr><tr class="best"><td>A* (h2)</td><td>optimal</td><td>0.0%</td><td>11,141</td><td>1439.6 ms</td></tr><tr><td>A* (h1)</td><td>optimal</td><td>0.0%</td><td>84,867</td><td>2287.5 ms</td></tr><tr><td>DFS + B&B</td><td>optimal</td><td>0.0%</td><td>3,830,946</td><td>10517.0 ms</td></tr><tr><td>IDS</td><td>0% optimal</td><td>53.6%</td><td>1,974,923</td><td>6577.0 ms</td></tr><tr><td>BFS</td><td>0% optimal</td><td>46.6%</td><td>88,223</td><td>509.0 ms</td></tr><tr><td>Greedy best-first</td><td>0% optimal</td><td>49.8%</td><td>868</td><td>37.4 ms</td></tr></tbody>
   </table></div>
-  <p class=muted>Diagregasi dari semua SPPG di instance ini (sub-masalah nyata: sekolah milik tiap SPPG
-    pada penugasan terbaik Case 1) — sub-masalah nyata dianimasikan di surabaya_6sppg/animasi.html#stage=2 (SPPG terbesar, penugasan terbaik HC). UCS, A* dan DFS (branch and bound) menjamin rute
-    optimal; BFS menjamin jumlah Granmax paling sedikit (bukan termurah); Greedy (best-first) tercepat
-    tapi tidak menjamin optimal.</p>
+  <p class=muted>Diagregasi dari semua SPPG di instance ini (sekolah dibagi ke SPPG terdekat).
+    UCS, A*, dan DFS + branch and bound menjamin rute optimal; BFS dan IDS menjamin jumlah Granmax
+    paling sedikit (bukan termurah); Greedy best-first tercepat tapi tidak menjamin optimal.
+    Gap dihitung terhadap biaya UCS.</p>
+  <div class=gallery><figure><a href="surabaya_6sppg/fig_rute_terbaik.png"><img src="surabaya_6sppg/fig_rute_terbaik.png" alt="Rute terbaik (A*): tiap warna = satu SPPG" loading="lazy"></a><figcaption>Rute terbaik (A*): tiap warna = satu SPPG</figcaption></figure></div>
 </section>
   <footer>Proyek ETS Konsep Kecerdasan Artifisial. Data peta © kontributor OpenStreetMap, routing OSRM, tile peta © Esri.</footer>
 </main>

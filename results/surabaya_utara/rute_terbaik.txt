@@ -1,0 +1,14 @@
+Instance surabaya_utara: 3 SPPG, 18 sekolah, maks 3 sekolah/Granmax
+Sekolah ke SPPG terdekat, rute optimal tiap SPPG (A*)
+
+== Rp54,926 (76.90 km, 5.49 L), rata-rata tiba 13.5 mnt, terakhir 40.6 mnt, 10 Granmax
+  Granmax  1: SPPG-KRB -> SMP UNESA 1 Surabaya (tiba 4.0 mnt) -> kembali  [3.86 km, Rp2,760]
+  Granmax  2: SPPG-KRB -> SMP Negeri 38 Surabaya (tiba 2.8 mnt) -> kembali  [3.35 km, Rp2,391]
+  Granmax  3: SPPG-KRB -> SD Al Islamiyah (tiba 3.5 mnt) -> kembali  [8.10 km, Rp5,785]
+  Granmax  4: SPPG-TDK -> SD Negeri Bubutan III (tiba 3.4 mnt) -> kembali  [6.40 km, Rp4,571]
+  Granmax  5: SPPG-TDK -> SD Negeri Jepara I (tiba 3.3 mnt) -> SMP Kartini (tiba 25.5 mnt) -> kembali  [14.70 km, Rp10,500]
+  Granmax  6: SPPG-TDK -> SD Negeri Banyu Urip III/ 354 (tiba 4.8 mnt) -> SD Negeri Putat Jaya IV/380 (tiba 22.6 mnt) -> kembali  [10.59 km, Rp7,567]
+  Granmax  7: SPPG-SMK -> SMP Tritunggal (tiba 3.1 mnt) -> TK, SD, SMP Mandala (tiba 20.7 mnt) -> MI Al Azhar (tiba 40.6 mnt) -> kembali  [10.77 km, Rp7,692]
+  Granmax  8: SPPG-SMK -> SD Negeri Simokerto I (tiba 3.0 mnt) -> SD Muhammadiyah 17 (tiba 19.2 mnt) -> RA, MI, dan SMA Darus Sa'adah (tiba 35.4 mnt) -> kembali  [5.13 km, Rp3,662]
+  Granmax  9: SPPG-SMK -> MI Ma'arif NU Nurul Huda I (tiba 2.5 mnt) -> MI Darusalam (tiba 27.2 mnt) -> kembali  [8.26 km, Rp5,900]
+  Granmax 10: SPPG-SMK -> SD Negeri Kapasan V (tiba 2.2 mnt) -> KB-TK-SD Kristen Petra 7 (tiba 19.2 mnt) -> kembali  [5.74 km, Rp4,098]
