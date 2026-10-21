@@ -9,10 +9,11 @@ A2. Skalabilitas: k = 3..12 sekolah acak dari sekolah terdekat tiap SPPG
 Contoh:  python run_search.py --workers 4
 Hasil:   results/search_real.csv, results/search_scaling.csv, results/search_summary.csv,
          results/fig_search_scaling.png, results/fig_search_gap.png,
-         results/<instance>/rute_terbaik.json|txt, fig_rute_terbaik.png, peta_rute_terbaik.html
+         results/<instance>/rute_terbaik.json|txt (A*), rute_algoritma.json, fig_rute_<algoritma>.png, peta_rute_terbaik.html (semua algoritma)
 """
 import argparse
 import csv
+import dataclasses
 import json
 import os
 import sys
@@ -71,7 +72,7 @@ def task(name, config, meta, depot, schools, vehicles, max_nodes):
                      "optimal": bool(found and abs(gap) < 1e-6), "expanded": res.expanded,
                      "generated": res.generated, "max_stored": res.max_stored,
                      "runtime_s": res.runtime_s, "n_trips": len(res.routes)})
-    return rows, results["A*"].routes
+    return rows, {a: res.routes for a, res in results.items()}
 
 
 def run_all(jobs, workers):
@@ -106,7 +107,7 @@ def describe_routes(inst, routes):
 
 
 def save_best_routes(name, config, routes):
-    """Rute terbaik seluruh instance (A* per SPPG): JSON, teks, grafik statis, dan peta jalan."""
+    """Rute terbaik seluruh instance (A* per SPPG): JSON dan teks."""
     inst = _instance(name, config)
     out = ROOT / "results" / name
     ev = inst.evaluate(routes)
@@ -120,10 +121,42 @@ def save_best_routes(name, config, routes):
         f"== Rp{ev.cost:,.0f} ({ev.km:.2f} km, {ev.km / inst.km_per_liter:.2f} L), "
         f"rata-rata tiba {ev.mean_arrival:.1f} mnt, terakhir {ev.makespan:.1f} mnt, "
         f"{ev.n_vehicles} Granmax\n{describe_routes(inst, routes)}\n", encoding="utf-8")
-    viz.plot_routes_static(inst, routes, out / "fig_rute_terbaik.png",
-                           f"Rute terbaik (A*): Rp{ev.cost:,.0f}, rata-rata {ev.mean_arrival:.1f} mnt")
-    viz.map_routes_html(inst, {"Rute terbaik (A*)": (routes, ev)}, out / "peta_rute_terbaik.html",
-                        cache_path=out / ".osrm_cache.json")
+
+
+def algo_slug(algo):
+    return {"A* (h1)": "astar_h1", "A*": "astar_h2", "DFS-B&B": "dfs_bb"}.get(algo, algo.lower())
+
+
+def algo_label(algo):
+    return "A* (h2)" if algo == "A*" else algo
+
+
+def save_algorithm_routes(name, config, algos, done):
+    """Rute hasil tiap algoritma (gabungan semua SPPG): JSON ringkasan, satu grafik per algoritma, dan satu
+    peta jalan dengan satu layer per algoritma. Algoritma yang gagal/terpotong di sebagian SPPG diberi catatan."""
+    inst = _instance(name, config)
+    out = ROOT / "results" / name
+    mine = [(rows, by_algo) for job, rows, by_algo in done if job[0] == name]
+    summary, layers = {}, {}
+    for a in ["A*"] + [x for x in algos if x != "A*"]:
+        routes = [rt for _, by_algo in mine for rt in by_algo[a]]
+        empty = sum(1 for _, by_algo in mine if not by_algo[a])
+        cut = sum(row["status"] != "ok" for rows, _ in mine for row in rows if row["algorithm"] == a) - empty
+        note = (f"tidak selesai di {empty} SPPG, rutenya kosong" if empty else
+                f"rute sementara di {cut} SPPG (batas node)" if cut else "")
+        served = sum(len(seq) for _, seq in routes)
+        ev = inst.evaluate(routes)
+        ev = dataclasses.replace(ev, mean_arrival=ev.mean_arrival * inst.n / served)
+        label = algo_label(a)
+        summary[a] = {"label": label, "note": note, "cost_rp": ev.cost, "km": ev.km, "n_vehicles": ev.n_vehicles,
+                      "mean_arrival_min": ev.mean_arrival, "served": served,
+                      "routes": [[int(d), [int(s) for s in seq]] for d, seq in routes]}
+        viz.plot_routes_static(inst, routes, out / f"fig_rute_{algo_slug(a)}.png",
+                               f"{label}: Rp{ev.cost:,.0f}, rata-rata {ev.mean_arrival:.1f} mnt, {ev.n_vehicles} Granmax"
+                               + (f"\n({note})" if note else ""))
+        layers[f"{label}{' (' + note + ')' if note else ''}"] = (routes, ev)
+    (out / "rute_algoritma.json").write_text(json.dumps(summary, indent=1), encoding="utf-8")
+    viz.map_routes_html(inst, layers, out / "peta_rute_terbaik.html", cache_path=out / ".osrm_cache.json")
 
 
 def plots(config, algos, summary, scaling, real):
@@ -170,8 +203,8 @@ def run_real(config, algos, args):
                   key=lambda r: (r["instance"], r["depot"], order[r["algorithm"]]))
     write_csv(ROOT / "results" / "search_real.csv", real)
     for name in config["instances"]:
-        routes = [rt for job, _, trips in done if job[0] == name for rt in trips]
-        save_best_routes(name, config, routes)
+        save_best_routes(name, config, [rt for job, _, by_algo in done if job[0] == name for rt in by_algo["A*"]])
+        save_algorithm_routes(name, config, algos, done)
 
     print(f"\n{'algoritma':10}{'optimal':>9}{'gap rata2':>11}{'ekspansi':>11}{'memori maks':>13}{'detik':>9}")
     for a in algos:

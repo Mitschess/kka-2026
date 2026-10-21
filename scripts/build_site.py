@@ -20,7 +20,6 @@ ROUTE_LABEL = {"GBFS": "Greedy best-first", "A*": "A* (h2)", "DFS-B&B": "DFS + B
 ROUTE_OPTIMAL = {"UCS", "A*", "A* (h1)", "DFS-B&B"}   # menjamin solusi optimal
 
 ROUTE_FILES = ["rute_terbaik.txt", "peta_rute_terbaik.html", "animasi.html"]
-ROUTE_FIGS = [("fig_rute_terbaik.png", "Rute terbaik (A*): tiap warna = satu SPPG")]
 SEARCH_FIGS = [
     ("fig_search_scaling.png", "Skalabilitas pencarian (node diekspansi vs jumlah sekolah k)"),
     ("fig_search_gap.png", "Selisih biaya terhadap optimum per algoritma (sub-masalah k ≤ 9)"),
@@ -91,6 +90,22 @@ def figs_html(name, src, dst, figs):
     return "".join(out)
 
 
+def algo_figs(name, src):
+    """(berkas, keterangan) peta rute tiap algoritma, urut ROUTE_ORDER, dari rute_algoritma.json."""
+    path = src / "rute_algoritma.json"
+    if not path.exists():
+        return []
+    summary = json.loads(path.read_text(encoding="utf-8"))
+    figs = []
+    for a in ROUTE_ORDER:
+        r = summary[a]
+        slug = {"A* (h1)": "astar_h1", "A*": "astar_h2", "DFS-B&B": "dfs_bb"}.get(a, a.lower())
+        note = f" ({r['note']})" if r["note"] else ""
+        figs.append((f"fig_rute_{slug}.png", f"{r['label']}: Rp{r['cost_rp']:,.0f}, rata-rata tiba "
+                     f"{r['mean_arrival_min']:.1f} mnt, {r['n_vehicles']} Granmax{note}"))
+    return figs
+
+
 def instance_section(name, cfg, search_rows):
     src = ROOT / "results" / name
     dst = SITE / name
@@ -106,7 +121,7 @@ def instance_section(name, cfg, search_rows):
   <div class=links>
     <a class=primary href="{name}/animasi.html#stage=1">▶ Animasi pencarian rute</a>
     <a href="{name}/animasi.html#stage=2">Animasi pengiriman</a>
-    <a href="{name}/peta_rute_terbaik.html">Peta rute terbaik</a>
+    <a href="{name}/peta_rute_terbaik.html">Peta interaktif (semua algoritma)</a>
     <a href="{name}/rute_terbaik.txt">Rute terbaik (teks)</a>
   </div>
   {route_table(route_summary(search_rows, name))}
@@ -114,7 +129,7 @@ def instance_section(name, cfg, search_rows):
     UCS, A*, dan DFS + branch and bound menjamin rute optimal; BFS dan IDS menjamin jumlah Granmax
     paling sedikit (bukan termurah); Greedy best-first tercepat tapi tidak menjamin optimal.
     Gap dihitung terhadap biaya UCS.</p>
-  <div class=gallery>{figs_html(name, src, dst, ROUTE_FIGS)}</div>
+  <div class=gallery>{figs_html(name, src, dst, algo_figs(name, src))}</div>
 </section>"""
 
 
