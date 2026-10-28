@@ -90,9 +90,9 @@ Buka `results/<instance>/peta_rute_terbaik.html` di browser untuk melihat peta r
 ### Animasi (`results/<instance>/animasi.html`)
 
 Dua tahap:
-1. **Rute terbaik**: langkah demi langkah BFS / UCS / A* / GBFS / DFS-B&B mencari rute di satu
-   sub-masalah nyata (SPPG dengan sekolah terbanyak, dibatasi k <= 9). Baris pseudocode yang
-   sedang dijalankan di-highlight.
+1. **Pencarian rute**: langkah demi langkah tujuh algoritma (BFS, IDS, DFS-B&B, UCS, A* h1,
+   A* h2, dan GBFS). Semua SPPG di instance dianimasikan serentak; pseudocode mengikuti SPPG
+   dengan sekolah terbanyak.
 2. **Pengiriman**: Granmax bergerak di jalan asli dari SPPG ke sekolah dengan jam berjalan,
    memakai rute terbaik (A*) seluruh instance.
 

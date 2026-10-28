@@ -1,7 +1,7 @@
 """Kumpulkan hasil (animasi, peta, grafik) ke folder site/ untuk hosting statis (Vercel dll).
 
 Halaman depan (src/mbgvrp/site_template.html) interaktif: peta rute tiap algoritma pencarian
-(BFS, IDS, DFS-B&B, UCS, A*, GBFS) di jalan asli, grafik perbandingan, dan grafik skalabilitas.
+(BFS, IDS, DFS-B&B, UCS, A* h1, A* h2, GBFS) di jalan asli, grafik perbandingan, dan grafik skalabilitas.
 Semua angka dibaca dari hasil yang sudah ada; tidak ada pencarian yang dijalankan ulang.
 Jalankan setelah run_search.py dan make_animation.py:
   python scripts/build_site.py

@@ -292,26 +292,44 @@ def breadth_first(problem, max_nodes=2_000_000, trace=None):
     return problem._result("BFS", None, stats, start)
 
 
-def iterative_deepening(problem, max_nodes=20_000_000):
+def iterative_deepening(problem, max_nodes=20_000_000, trace=None):
     """IDS: depth-limited DFS dengan batas kedalaman 0, 1, 2, ... (tree search).
-    Hasilnya sama dengan BFS (solusi terdangkal), memorinya seperti DFS."""
+    Hasilnya sama dengan BFS (solusi terdangkal), memorinya seperti DFS.
+    `trace(event, **data)` opsional untuk merekam jalannya algoritma."""
     start, stats = time.perf_counter(), _new_stats()
     try:
         for limit in range(problem.k + problem.V + 1):
-            stack, cutoff = [_Node(problem.initial)], False
+            root = _Node(problem.initial)
+            stack, cutoff = [root], False
+            if trace:
+                trace("start", node=root, limit=limit)
             while stack:
                 node = stack.pop()
+                if trace:
+                    trace("pop", node=node, frontier=len(stack), limit=limit)
                 if problem.is_goal(node.state):
+                    if trace:
+                        trace("goal", node=node, limit=limit)
                     return problem._result("IDS", node, stats, start, extra={"depth": limit})
                 if node.depth == limit:
                     cutoff = True
+                    if trace:
+                        trace("cutoff", node=node, limit=limit)
                     continue
                 stats["expanded"] += 1
-                stack.extend(reversed(_children(problem, node, stats, max_nodes)))
+                if trace:
+                    trace("expand", node=node, frontier=len(stack), limit=limit)
+                children = _children(problem, node, stats, max_nodes)
+                stack.extend(reversed(children))
+                if trace:
+                    for child in children:
+                        trace("child", parent=node, child=child, kept=True, limit=limit)
                 stats["max_stored"] = max(stats["max_stored"], len(stack))
             if not cutoff:
                 break
     except _Limit:
+        if trace:
+            trace("limit", generated=stats["generated"])
         return problem._result("IDS", None, stats, start, "batas")
     return problem._result("IDS", None, stats, start)
 

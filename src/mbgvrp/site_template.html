@@ -645,6 +645,9 @@ function vehPoints(inst, v) {
   }
   return pts;
 }
+function updateHeroAnimLink() {
+  $("#heroAnim").href = `${cur.name}/animasi.html#stage=1&algoRoute=${encodeURIComponent(DATA.reference)}`;
+}
 function buildHero() {
   const inst = INST[DATA.hero_instance], best = ref(inst);
   const W = 1000, H = 760, P = project(inst.nodes, W, H, 70);
@@ -689,7 +692,7 @@ function buildHero() {
     box.append(h("div", {}, b, h("span", { text: lbl })));
     setTimeout(() => tween(b, v, fmt, 1400), 350);
   }
-  $("#heroAnim").href = `${inst.name}/animasi.html#stage=1&algoRoute=${encodeURIComponent(DATA.reference)}`;
+  updateHeroAnimLink();
 }
 
 // ================================================================ parameter model
@@ -712,6 +715,7 @@ function buildInstSeg() {
 
 function renderInstance(fit) {
   [...$("#instSeg").children].forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.name === cur.name)));
+  updateHeroAnimLink();
   if (!algoOf(algoKey)) algoKey = DATA.reference;
   $("#petaTitle").textContent = `Jelajahi rute setiap algoritma di ${cur.title}`;
   renderInsights();

@@ -1,5 +1,5 @@
-"""Animasi gaya VisuAlgo, dua tahap: (1) pencarian rute terbaik di dalam tiap SPPG
-(BFS, UCS, A*, GBFS, DFS-B&B), (2) Granmax mengantar MBG memakai rute hasil algoritma yang sama.
+"""Animasi gaya VisuAlgo, dua tahap: (1) pencarian rute di dalam tiap SPPG
+(BFS, IDS, DFS-B&B, UCS, A* h1, A* h2, GBFS), (2) Granmax mengantar MBG memakai rute hasil algoritma yang sama.
 
 Tahap 1: sekolah dibagi ke SPPG terdekat, lalu pencarian semua SPPG dianimasikan bersamaan
 (tiap SPPG di kemajuannya sendiri, selesai bersamaan). Pseudocode dan penjelasan mengikuti SPPG
@@ -14,6 +14,7 @@ Hasil: results/<instance>/animasi.html  (buka di browser, butuh internet untuk p
 import argparse
 import json
 import math
+import os
 import sys
 import time
 from pathlib import Path
@@ -75,6 +76,17 @@ ASTAR_CODE = [
     "    jalur termurah ke keadaan anak -> simpan & masuk frontier urut f",
     "    else: buang",
 ]
+ASTAR_H1_CODE = [
+    "frontier <- priority queue berisi akar, urut f(n) = g(n) + h1(n)",
+    "h1(n): batas bawah jalan masuk & waktu tiba sekolah tersisa",
+    "while frontier tidak kosong:",
+    "  n <- keluarkan node ber-f(n) terkecil",
+    "  if n = goal: kembalikan rute n (optimal, h1 admissible)",
+    "  for tiap aksi (antar sekolah j / pulang ke SPPG) dari n:",
+    "    anak <- terapkan aksi, g(anak) = g(n) + biaya langkah",
+    "    jalur termurah ke keadaan anak -> simpan & masuk frontier urut f",
+    "    else: buang",
+]
 BFS_CODE = [
     "frontier <- FIFO berisi akar; reached <- {akar}",
     "while frontier tidak kosong:",
@@ -84,6 +96,16 @@ BFS_CODE = [
     "    if anak = goal: kembalikan rute anak",
     "    elif keadaan anak belum reached: simpan & masuk frontier (belakang)",
     "    else: buang (sudah pernah dikunjungi)",
+]
+IDS_CODE = [
+    "for batas kedalaman limit = 0, 1, 2, ...:",
+    "  stack <- [akar]",
+    "  while stack tidak kosong:",
+    "    n <- pop(stack) (LIFO)",
+    "    if n = goal: kembalikan rute n",
+    "    if depth(n) = limit: tandai cutoff",
+    "    else: ekspansi n; push anak-anak ke stack",
+    "  jika tidak ada cutoff: pencarian selesai",
 ]
 DFSBB_CODE = [
     "stack <- [akar]; terbaik <- tak ada",
@@ -185,6 +207,71 @@ def record_bfs(problem):
     return frames, res.routes
 
 
+def record_ids(problem):
+    """Rekam IDS secara streaming supaya pencarian berulang tidak menahan semua node di memori."""
+    frames = []
+    pop_i = 0
+    sampled_pop = False
+    detailed_pop = False
+    every = max(1, ANIM_MAX_NODES // N_COARSE)
+
+    def info(node, frontier=None, limit=None):
+        extra = {}
+        if frontier is not None:
+            extra["Frontier"] = frontier
+        if limit is not None:
+            extra["Batas kedalaman"] = limit
+            extra["Kedalaman node"] = node.depth
+        return _node_info(problem, node, extra)
+
+    def trace(ev, **d):
+        nonlocal pop_i, sampled_pop, detailed_pop
+        if ev == "start":
+            limit = d["limit"]
+            frames.append({"l": 0, "r": pack(problem.routes_of(d["node"])),
+                           "i": info(d["node"], frontier=1, limit=limit),
+                           "m": f"Iterasi IDS: mulai DFS dengan batas kedalaman {limit}."})
+        elif ev == "pop":
+            pop_i += 1
+            sampled_pop = pop_i <= 5 or pop_i % every == 0
+            detailed_pop = pop_i <= 5
+            if sampled_pop:
+                node = d["node"]
+                frames.append({"l": 3, "r": pack(problem.routes_of(node)),
+                               "i": info(node, frontier=d["frontier"], limit=d["limit"]),
+                               "m": f"Ambil node ke-{pop_i} dari atas stack (LIFO)."})
+        elif ev == "expand" and sampled_pop:
+            node = d["node"]
+            frames.append({"l": 6, "r": pack(problem.routes_of(node)),
+                           "i": info(node, frontier=d["frontier"], limit=d["limit"]),
+                           "m": "Batas kedalaman belum tercapai: ekspansi node dan masukkan anak ke stack."})
+        elif ev == "cutoff" and sampled_pop:
+            node = d["node"]
+            frames.append({"l": 5, "r": pack(problem.routes_of(node)),
+                           "i": info(node, frontier=0, limit=d["limit"]),
+                           "m": "Batas kedalaman tercapai: hentikan cabang ini dan tandai cutoff."})
+        elif ev == "child" and detailed_pop:
+            child = d["child"]
+            action = child.action
+            hl = [problem.schools[action - 1]] if action else []
+            frames.append({"l": 6, "r": pack(problem.routes_of(child)),
+                           "i": info(child, limit=d["limit"]),
+                           "m": "Anak dimasukkan ke stack untuk ditelusuri secara depth-first.", "hl": hl})
+        elif ev == "goal":
+            node = d["node"]
+            frames.append({"l": 4, "r": pack(problem.routes_of(node)),
+                           "i": info(node, limit=d["limit"]),
+                           "m": "Goal ditemukan: semua sekolah terlayani dan Granmax kembali ke SPPG."})
+
+    res = SEARCHES["IDS"](problem, max_nodes=ANIM_MAX_NODES, trace=trace)
+    served = sum(len(seq) for _, seq in res.routes)
+    message = (f"IDS selesai pada batas kedalaman {res.extra.get('depth', '–')}." if res.status == "ok" else
+               "Batas node animasi tercapai sebelum IDS menemukan solusi.")
+    frames.append({"l": 7, "r": pack(res.routes), "m": message,
+                   "i": {"Sekolah terlayani": f"{served}/{problem.k}"}})
+    return frames, res.routes
+
+
 def record_dfsbb(problem):
     events = []
     res = SEARCHES["DFS-B&B"](problem, max_nodes=ANIM_MAX_NODES, trace=lambda ev, **d: events.append((ev, d)))
@@ -232,11 +319,14 @@ def record_dfsbb(problem):
 
 
 RECORDERS = {
-    "BFS": (BFS_CODE, lambda p: record_bfs(p)),
     "UCS": (UCS_CODE, lambda p: record_bestfirst(p, "UCS", BESTFIRST_LINES, lambda n: n.g)),
     "A*": (ASTAR_CODE, lambda p: record_bestfirst(p, "A*", ASTAR_LINES, lambda n: n.g + p.h(n.state))),
-    "GBFS": (GBFS_CODE, lambda p: record_bestfirst(p, "GBFS", BESTFIRST_LINES, lambda n: p.h(n.state))),
+    "A* (h1)": (ASTAR_H1_CODE, lambda p: record_bestfirst(p, "A* (h1)", ASTAR_LINES,
+                                                             lambda n: n.g + p.h_nearest(n.state))),
     "DFS-B&B": (DFSBB_CODE, record_dfsbb),
+    "IDS": (IDS_CODE, record_ids),
+    "BFS": (BFS_CODE, lambda p: record_bfs(p)),
+    "GBFS": (GBFS_CODE, lambda p: record_bestfirst(p, "GBFS", BESTFIRST_LINES, lambda n: p.h(n.state))),
 }
 
 
@@ -364,7 +454,9 @@ class LegCache:
             print()
 
     def save(self):
-        self.path.write_text(json.dumps(self.data), encoding="utf-8")
+        tmp = self.path.with_name(self.path.name + ".tmp")
+        tmp.write_text(json.dumps(self.data), encoding="utf-8")
+        os.replace(tmp, self.path)
 
 
 def delivery_plan(inst, routes, legs):
